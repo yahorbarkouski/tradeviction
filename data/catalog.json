@@ -1,0 +1,182 @@
+[
+  {
+    "name": "OpenAI",
+    "url": "https://openai.com",
+    "description": "ChatGPT, the API, and the lab behind them"
+  },
+  {
+    "name": "Anthropic",
+    "url": "https://anthropic.com",
+    "description": "Claude. Constitutional AI, enterprise contracts"
+  },
+  {
+    "name": "Perplexity",
+    "url": "https://perplexity.ai",
+    "description": "Answer engine that cites the web"
+  },
+  {
+    "name": "xAI",
+    "url": "https://x.ai",
+    "description": "Grok, trained with a firehose of X"
+  },
+  {
+    "name": "Mistral",
+    "url": "https://mistral.ai",
+    "description": "European open-weight models and Le Chat"
+  },
+  {
+    "name": "Google DeepMind",
+    "url": "https://deepmind.google",
+    "description": "Gemini, AlphaFold, and the rest of the lab"
+  },
+  {
+    "name": "Cursor",
+    "url": "https://cursor.com",
+    "description": "The AI code editor everyone is paying for"
+  },
+  {
+    "name": "Cognition",
+    "url": "https://cognition.ai",
+    "description": "Devin, the software agent"
+  },
+  {
+    "name": "Thinking Machines",
+    "url": "https://thinkingmachines.ai",
+    "description": "Mira Murati's lab"
+  },
+  {
+    "name": "SSI",
+    "url": "https://ssi.inc",
+    "description": "Safe Superintelligence. Ilya, one product"
+  },
+  {
+    "name": "Character.AI",
+    "url": "https://character.ai",
+    "description": "Consumer chatbots with a teenage user base"
+  },
+  {
+    "name": "Glean",
+    "url": "https://glean.com",
+    "description": "Work search over the company corpus"
+  },
+  {
+    "name": "Harvey",
+    "url": "https://harvey.ai",
+    "description": "Legal AI sold into firms"
+  },
+  {
+    "name": "Midjourney",
+    "url": "https://midjourney.com",
+    "description": "Image models, Discord-native"
+  },
+  {
+    "name": "Runway",
+    "url": "https://runwayml.com",
+    "description": "Generative video for production"
+  },
+  {
+    "name": "Suno",
+    "url": "https://suno.com",
+    "description": "Text to music"
+  },
+  {
+    "name": "ElevenLabs",
+    "url": "https://elevenlabs.io",
+    "description": "Voice generation that sounds like a person"
+  },
+  {
+    "name": "Hugging Face",
+    "url": "https://huggingface.co",
+    "description": "The model hub and the social layer around it"
+  },
+  {
+    "name": "Groq",
+    "url": "https://groq.com",
+    "description": "LPU inference, very fast tokens"
+  },
+  {
+    "name": "Together AI",
+    "url": "https://together.ai",
+    "description": "Open-model inference cloud"
+  },
+  {
+    "name": "Scale AI",
+    "url": "https://scale.com",
+    "description": "Data labeling, now a frontier-lab supplier"
+  },
+  {
+    "name": "Figure",
+    "url": "https://figure.ai",
+    "description": "Humanoid robots for the warehouse floor"
+  },
+  {
+    "name": "Anduril",
+    "url": "https://anduril.com",
+    "description": "Defense hardware, software-defined"
+  },
+  {
+    "name": "SpaceX",
+    "url": "https://spacex.com",
+    "description": "Rockets, Starlink, the launch monopoly"
+  },
+  {
+    "name": "Stripe",
+    "url": "https://stripe.com",
+    "description": "Payments infrastructure"
+  },
+  {
+    "name": "Linear",
+    "url": "https://linear.app",
+    "description": "Issue tracking that replaced Jira for a generation"
+  },
+  {
+    "name": "Granola",
+    "url": "https://granola.so",
+    "description": "AI meeting notes that stay out of the way"
+  },
+  {
+    "name": "Clay",
+    "url": "https://clay.com",
+    "description": "Outbound that actually knows the account"
+  },
+  {
+    "name": "Figma",
+    "url": "https://figma.com",
+    "description": "The design tool Adobe tried to buy"
+  },
+  {
+    "name": "Notion",
+    "url": "https://notion.so",
+    "description": "Docs, wiki, and the AI sitting on top"
+  },
+  {
+    "name": "Vercel",
+    "url": "https://vercel.com",
+    "description": "Next.js and the frontend cloud"
+  },
+  {
+    "name": "Databricks",
+    "url": "https://databricks.com",
+    "description": "Lakehouse, Spark, and enterprise AI"
+  },
+  {
+    "name": "Ramp",
+    "url": "https://ramp.com",
+    "description": "Spend cards and the close behind them"
+  },
+  {
+    "name": "Rippling",
+    "url": "https://rippling.com",
+    "description": "HR, IT, and payroll on one employee graph"
+  },
+  {
+    "name": "Neon",
+    "url": "https://neon.tech",
+    "description": "Serverless Postgres"
+  },
+  {
+    "name": "Supabase",
+    "url": "https://supabase.com",
+    "description": "Postgres backend as a product"
+  }
+]

@@ -1,0 +1,75 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Helvetica Neue", Helvetica, Arial, ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+  --color-bg: #fafafa;
+  --color-ink: #292421;
+  --color-mute: rgb(41 36 33 / 0.68);
+  --color-line: rgb(41 36 33 / 0.1);
+  --color-soft: rgb(41 36 33 / 0.07);
+  --color-paper: #fffdfa;
+  --color-long: #2f6a4a;
+  --color-short: #b42318;
+  --color-link: #5d738c;
+  --color-fresh: #3c8c4a;
+  --text-sm: 14px;
+  --text-base: 16px;
+  --text-lg: 18px;
+  --text-2xl: 20px;
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    @apply bg-bg text-ink antialiased [touch-action:manipulation];
+  }
+
+  body {
+    @apply m-0 font-sans text-base leading-[1.42];
+    letter-spacing: -0.01em;
+    overflow-x: clip;
+  }
+
+  .font-mono {
+    letter-spacing: 0;
+  }
+
+  a,
+  button {
+    transition-property: color, opacity, text-decoration-color, transform, background-color, border-color;
+    transition-duration: 160ms;
+    transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  a {
+    @apply text-inherit no-underline;
+  }
+
+  a:hover {
+    @apply underline decoration-1 [text-underline-offset:0.12em];
+  }
+
+  a[rel="noreferrer"] {
+    color: var(--color-link);
+  }
+
+  a[rel="noreferrer"]:hover {
+    @apply text-ink;
+  }
+
+  p {
+    @apply text-pretty;
+  }
+
+  ::selection {
+    background: rgb(41 36 33 / 0.1);
+  }
+
+  :focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgb(41 36 33 / 0.14);
+  }
+}
