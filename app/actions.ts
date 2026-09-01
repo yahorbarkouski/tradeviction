@@ -3,10 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { clearSession, getCurrentUser, hashPassword, setSession, verifyPassword } from "@/lib/auth";
+import { isAdmin } from "@/lib/admin";
 import {
+  AdminError,
   BookError,
   applyBookChange,
   createUser,
+  deleteCommentTree,
+  deleteStartup,
+  deleteUser,
   getCommentById,
   getKarma,
   getStartupByDomain,
@@ -14,21 +19,34 @@ import {
   getUserByUsername,
   insertReply,
   insertStartup,
+  setMuted,
   setShowDead,
   setVote,
   toggleFlag,
   toggleVouch,
+  updateComment,
+  updateStartup,
 } from "@/lib/db/queries";
 import { parseNote, parseUsername } from "@/lib/slug";
 import { identityFromUrl } from "@/lib/domain";
 import { assertWrite, GuardError, honeypotFilled, recordWrite } from "@/lib/guard";
 import { FLAG_KARMA, VOUCH_KARMA } from "@/lib/market";
-import { assertClean } from "@/lib/moderate";
+import { assertClean, assertCleanListing } from "@/lib/moderate";
 import { commentPath } from "@/lib/thread";
-import { isDirection } from "@/lib/types";
+import { isDirection, type User } from "@/lib/types";
 import { verifyTurnstile } from "@/lib/turnstile";
 
 export type ActionState = { error: string } | null;
+
+async function requireTurnstile(formData: FormData, action: string): Promise<ActionState> {
+  try {
+    await verifyTurnstile(formData.get("cf-turnstile-response"), action);
+    return null;
+  } catch (error) {
+    if (error instanceof GuardError) return { error: error.message };
+    throw error;
+  }
+}
 
 function nextPath(formData: FormData, fallback: string): string {
   const next = formData.get("next");
@@ -46,14 +64,25 @@ async function rejectDirty(texts: Array<string | null | undefined>): Promise<Act
   }
 }
 
-export async function registerAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  if (honeypotFilled(formData)) redirect(nextPath(formData, "/"));
+async function rejectDirtyListing(input: {
+  name: string;
+  description: string;
+  domain: string;
+  url: string;
+}): Promise<ActionState> {
   try {
-    await verifyTurnstile(formData.get("cf-turnstile-response"), "signup");
+    await assertCleanListing(input);
+    return null;
   } catch (error) {
     if (error instanceof GuardError) return { error: error.message };
     throw error;
   }
+}
+
+export async function registerAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  if (honeypotFilled(formData)) redirect(nextPath(formData, "/"));
+  const blocked = await requireTurnstile(formData, "signup");
+  if (blocked) return blocked;
   const username = parseUsername(String(formData.get("username") ?? ""));
   const password = String(formData.get("password") ?? "");
   if (!username) {
@@ -85,6 +114,8 @@ export async function registerAction(_prev: ActionState, formData: FormData): Pr
 
 export async function loginAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   if (honeypotFilled(formData)) redirect(nextPath(formData, "/"));
+  const blocked = await requireTurnstile(formData, "login");
+  if (blocked) return blocked;
   let ip: string;
   try {
     ip = await assertWrite("login", null);
@@ -129,7 +160,12 @@ export async function submitStartupAction(_prev: ActionState, formData: FormData
   if (description.length < 8 || description.length > 200) {
     return { error: "One-liner should be 8–200 characters." };
   }
-  const dirty = await rejectDirty([name, description]);
+  const dirty = await rejectDirtyListing({
+    name,
+    description,
+    domain: ident.domain,
+    url: ident.canonicalUrl,
+  });
   if (dirty) return dirty;
   const startup = await insertStartup({
     name,
@@ -288,4 +324,118 @@ export async function showDeadAction(formData: FormData): Promise<void> {
   await setShowDead(user.id, formData.get("on") === "1");
   revalidatePath("/");
   revalidatePath(`/u/${user.username}`);
+}
+
+async function requireAdmin(): Promise<User> {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  if (!isAdmin(user)) redirect("/");
+  return user;
+}
+
+function touchStartup(slug: string): void {
+  revalidatePath("/");
+  revalidatePath(`/s/${slug}`);
+}
+
+export async function adminUpdateStartupAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdmin();
+  const startup = await getStartupById(String(formData.get("startupId") ?? ""));
+  if (!startup) return { error: "Startup not found." };
+  const name = String(formData.get("name") ?? "").trim();
+  const description = String(formData.get("description") ?? "").trim();
+  if (name.length < 2 || name.length > 80) return { error: "Name should be 2–80 characters." };
+  if (description.length < 8 || description.length > 200) {
+    return { error: "One-liner should be 8–200 characters." };
+  }
+  const ident = identityFromUrl(String(formData.get("url") ?? ""));
+  if (!ident) return { error: "Need a real http(s) URL or domain." };
+  const dirty = await rejectDirtyListing({
+    name,
+    description,
+    domain: ident.domain,
+    url: ident.canonicalUrl,
+  });
+  if (dirty) return dirty;
+  let updated;
+  try {
+    updated = await updateStartup({
+      id: startup.id,
+      name,
+      description,
+      url: ident.canonicalUrl,
+    });
+  } catch (error) {
+    if (error instanceof AdminError) return { error: error.message };
+    throw error;
+  }
+  touchStartup(startup.slug);
+  redirect(`/s/${updated.slug}`);
+}
+
+export async function adminDeleteStartupAction(formData: FormData): Promise<void> {
+  await requireAdmin();
+  const startup = await getStartupById(String(formData.get("startupId") ?? ""));
+  if (!startup) redirect("/");
+  await deleteStartup(startup.id);
+  touchStartup(startup.slug);
+  redirect("/");
+}
+
+export async function adminUpdateCommentAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdmin();
+  const commentId = String(formData.get("commentId") ?? "");
+  const comment = await getCommentById(commentId);
+  if (!comment) return { error: "Comment not found." };
+  const startup = await getStartupById(comment.startupId);
+  if (!startup) return { error: "Startup not found." };
+  const text = String(formData.get("text") ?? "").trim();
+  if (text.length < 2 || text.length > 2000) return { error: "Comment should be 2–2000 characters." };
+  const dirty = await rejectDirty([text]);
+  if (dirty) return dirty;
+  await updateComment(commentId, text);
+  touchStartup(startup.slug);
+  revalidatePath(commentPath(startup.slug, commentId));
+  redirect(nextPath(formData, commentPath(startup.slug, commentId)));
+}
+
+export async function adminDeleteCommentAction(formData: FormData): Promise<void> {
+  await requireAdmin();
+  const commentId = String(formData.get("commentId") ?? "");
+  const comment = await getCommentById(commentId);
+  if (!comment) return;
+  const startup = await getStartupById(comment.startupId);
+  await deleteCommentTree(commentId);
+  revalidatePath("/");
+  if (startup) {
+    revalidatePath(`/s/${startup.slug}`);
+    revalidatePath(commentPath(startup.slug, commentId));
+  }
+  const dest = nextPath(formData, startup ? `/s/${startup.slug}` : "/");
+  if (startup && dest.includes(`/c/${commentId}`)) redirect(`/s/${startup.slug}`);
+  redirect(dest);
+}
+
+export async function adminMuteAction(formData: FormData): Promise<void> {
+  await requireAdmin();
+  const username = String(formData.get("username") ?? "").trim();
+  const target = await getUserByUsername(username);
+  if (!target || isAdmin(target)) {
+    redirect(username ? `/u/${username}` : "/");
+  }
+  await setMuted(target.id, formData.get("on") === "1");
+  revalidatePath("/");
+  revalidatePath(`/u/${target.username}`);
+}
+
+export async function adminDeleteUserAction(formData: FormData): Promise<void> {
+  await requireAdmin();
+  const username = String(formData.get("username") ?? "").trim();
+  const target = await getUserByUsername(username);
+  if (!target) redirect("/");
+  if (isAdmin(target)) redirect(`/u/${target.username}`);
+  await deleteUser(target.id);
+  revalidatePath("/");
+  revalidatePath(`/u/${target.username}`);
+  redirect("/");
 }

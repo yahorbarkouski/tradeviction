@@ -5,12 +5,53 @@ const MODEL = "omni-moderation-latest";
 const BLOCKED = "That text isn't allowed.";
 const UNAVAILABLE = "Could not check that text. Try again.";
 
+const ADULT_HOSTS = new Set([
+  "pornhub.com",
+  "xvideos.com",
+  "xnxx.com",
+  "xhamster.com",
+  "spankbang.com",
+  "redtube.com",
+  "youporn.com",
+  "tube8.com",
+  "chaturbate.com",
+  "stripchat.com",
+  "livejasmin.com",
+  "onlyfans.com",
+  "fansly.com",
+  "manyvids.com",
+  "brazzers.com",
+  "nhentai.net",
+  "rule34.xxx",
+]);
+
 function piecesOf(texts: Array<string | null | undefined>): string[] {
   return texts.map((text) => (text ?? "").trim()).filter((text) => text.length > 0);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function hostOf(domain: string): string {
+  return (domain.split("/")[0] ?? "").replace(/^www\./i, "").toLowerCase();
+}
+
+function isAdultHost(domain: string): boolean {
+  const host = hostOf(domain);
+  if (!host) return false;
+  if (host.includes("porn") || host.includes(".xxx") || host.endsWith(".xxx")) return true;
+  for (const blocked of ADULT_HOSTS) {
+    if (host === blocked || host.endsWith(`.${blocked}`)) return true;
+  }
+  return false;
+}
+
+function rowBlocked(row: Record<string, unknown>): boolean {
+  if (row.flagged === true) return true;
+  const cats = row.categories;
+  if (!isRecord(cats)) return false;
+  return cats.sexual === true || cats["sexual/minors"] === true;
 }
 
 function anyFlagged(body: unknown): boolean {
@@ -21,7 +62,7 @@ function anyFlagged(body: unknown): boolean {
     if (!isRecord(row) || typeof row.flagged !== "boolean") {
       throw new GuardError(UNAVAILABLE);
     }
-    if (row.flagged) return true;
+    if (rowBlocked(row)) return true;
   }
   return false;
 }
@@ -55,4 +96,17 @@ export async function assertClean(texts: Array<string | null | undefined>): Prom
     throw new GuardError(UNAVAILABLE);
   }
   if (anyFlagged(body)) throw new GuardError(BLOCKED);
+}
+
+export async function assertCleanListing(input: {
+  name: string;
+  description: string;
+  domain: string;
+  url: string;
+}): Promise<void> {
+  if (isAdultHost(input.domain) || isAdultHost(input.url.replace(/^https?:\/\//i, ""))) {
+    throw new GuardError(BLOCKED);
+  }
+  const card = `Name: ${input.name}\nDomain: ${input.domain}\nURL: ${input.url}\nDescription: ${input.description}`;
+  await assertClean([input.url, card]);
 }
