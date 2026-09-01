@@ -62,6 +62,13 @@ export class BookError extends Error {
   }
 }
 
+export class AdminError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AdminError";
+  }
+}
+
 export type UserRecord = User & { passwordHash: string };
 
 function parseUser(row: Record<string, unknown>): User {
@@ -314,18 +321,132 @@ export async function insertStartup(input: {
   };
 }
 
+async function eraseCommentRows(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const ph = ids.map(() => "?").join(",");
+  await run(`DELETE FROM comment_votes WHERE comment_id IN (${ph})`, ids);
+  await run(`DELETE FROM comment_flags WHERE comment_id IN (${ph})`, ids);
+  await run(`DELETE FROM comment_vouches WHERE comment_id IN (${ph})`, ids);
+  await run(`UPDATE comments SET parent_id = NULL WHERE id IN (${ph})`, ids);
+  await run(`DELETE FROM comments WHERE id IN (${ph})`, ids);
+}
+
+async function eraseStartupRows(startupId: string): Promise<void> {
+  const commentIds = (await allRows("SELECT id FROM comments WHERE startup_id = ?", [startupId])).map((row) =>
+    str(row, "id"),
+  );
+  await eraseCommentRows(commentIds);
+  await run("DELETE FROM events WHERE startup_id = ?", [startupId]);
+  await run("DELETE FROM lots WHERE startup_id = ?", [startupId]);
+  await run("DELETE FROM positions WHERE startup_id = ?", [startupId]);
+  await run("DELETE FROM startups WHERE id = ?", [startupId]);
+}
+
 export async function purgeHnStartups(): Promise<void> {
   await withTransaction(async () => {
-    await run(
-      `DELETE FROM comment_votes WHERE comment_id IN (
-         SELECT id FROM comments WHERE startup_id IN (SELECT id FROM startups WHERE source = 'hn')
-       )`,
+    const ids = (await allRows("SELECT id FROM startups WHERE source = 'hn'")).map((row) => str(row, "id"));
+    for (const id of ids) await eraseStartupRows(id);
+  });
+}
+
+export async function updateStartup(input: {
+  id: string;
+  name: string;
+  description: string;
+  url: string;
+}): Promise<Startup> {
+  const current = await getStartupById(input.id);
+  if (!current) throw new AdminError("Startup not found.");
+  const ident = identityFromUrl(input.url);
+  if (!ident) throw new AdminError("Need a real http(s) URL or domain.");
+  const clash = await getStartupByDomain(ident.domain);
+  if (clash && clash.id !== input.id) throw new AdminError("That domain is already listed.");
+  await run("UPDATE startups SET name = ?, description = ?, url = ?, domain = ? WHERE id = ?", [
+    input.name,
+    input.description,
+    ident.canonicalUrl,
+    ident.domain,
+    input.id,
+  ]);
+  const updated = await getStartupById(input.id);
+  if (!updated) throw new AdminError("Startup not found.");
+  return updated;
+}
+
+export async function deleteStartup(id: string): Promise<void> {
+  await withTransaction(async () => {
+    await eraseStartupRows(id);
+  });
+}
+
+export async function updateComment(id: string, text: string): Promise<Comment | null> {
+  await run("UPDATE comments SET text = ? WHERE id = ?", [text, id]);
+  return await getCommentById(id);
+}
+
+export async function deleteCommentTree(id: string): Promise<string | null> {
+  return await withTransaction(async () => {
+    const root = await getCommentById(id);
+    if (!root) return null;
+    const rows = await allRows(
+      `WITH RECURSIVE tree AS (
+         SELECT id FROM comments WHERE id = ?
+         UNION ALL
+         SELECT c.id FROM comments c INNER JOIN tree t ON c.parent_id = t.id
+       )
+       SELECT id FROM tree`,
+      [id],
     );
-    await run("DELETE FROM comments WHERE startup_id IN (SELECT id FROM startups WHERE source = 'hn')");
-    await run("DELETE FROM events WHERE startup_id IN (SELECT id FROM startups WHERE source = 'hn')");
-    await run("DELETE FROM lots WHERE startup_id IN (SELECT id FROM startups WHERE source = 'hn')");
-    await run("DELETE FROM positions WHERE startup_id IN (SELECT id FROM startups WHERE source = 'hn')");
-    await run("DELETE FROM startups WHERE source = 'hn'");
+    await eraseCommentRows(rows.map((row) => str(row, "id")));
+    return root.startupId;
+  });
+}
+
+export async function setMuted(userId: string, on: boolean): Promise<void> {
+  await run("UPDATE users SET muted = ? WHERE id = ?", [on ? 1 : 0, userId]);
+}
+
+export async function deleteUser(id: string): Promise<void> {
+  await withTransaction(async () => {
+    for (let n = 0; n < 64; n += 1) {
+      const stuck = await getRow(
+        `SELECT 1 AS ok
+         FROM comments c
+         JOIN comments p ON p.id = c.parent_id
+         WHERE p.user_id = ?
+         LIMIT 1`,
+        [id],
+      );
+      if (!stuck) break;
+      await run(
+        `UPDATE comments AS child
+         SET parent_id = parent.parent_id
+         FROM comments AS parent
+         WHERE child.parent_id = parent.id AND parent.user_id = ?`,
+        [id],
+      );
+    }
+    await run(
+      `UPDATE comments SET parent_id = NULL
+       WHERE parent_id IN (SELECT id FROM comments WHERE user_id = ?)`,
+      [id],
+    );
+    await run("DELETE FROM comment_votes WHERE user_id = ?", [id]);
+    await run("DELETE FROM comment_flags WHERE user_id = ?", [id]);
+    await run("DELETE FROM comment_vouches WHERE user_id = ?", [id]);
+    const commentIds = (await allRows("SELECT id FROM comments WHERE user_id = ?", [id])).map((row) => str(row, "id"));
+    await eraseCommentRows(commentIds);
+    await run(
+      `UPDATE comments SET position_id = NULL
+       WHERE position_id IN (SELECT id FROM positions WHERE user_id = ?)`,
+      [id],
+    );
+    await run("DELETE FROM lots WHERE user_id = ?", [id]);
+    await run("DELETE FROM events WHERE user_id = ?", [id]);
+    await run("DELETE FROM positions WHERE user_id = ?", [id]);
+    await run("DELETE FROM moves WHERE user_id = ?", [id]);
+    await run("DELETE FROM rate_log WHERE user_id = ?", [id]);
+    await run("DELETE FROM users WHERE id = ?", [id]);
   });
 }
 
@@ -516,6 +637,7 @@ async function insertThesisComment(input: {
   text: string;
   at: number;
 }): Promise<void> {
+  if (!input.text.trim()) return;
   await run(
     `INSERT INTO comments (id, startup_id, user_id, parent_id, position_id, text, created_at)
      VALUES (?, ?, ?, NULL, ?, ?, ?)`,
