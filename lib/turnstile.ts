@@ -2,17 +2,37 @@ import { GuardError, clientIp } from "@/lib/guard";
 
 const DUMMY_PASS_SECRET = "1x0000000000000000000000000000000AA";
 
-const expectedHostnames = new Set(
-  (process.env.TURNSTILE_HOSTNAMES ?? "")
-    .split(",")
-    .map((hostname) => hostname.trim())
-    .filter(Boolean),
-);
+function hostnameOf(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  try {
+    return new URL(trimmed.includes("://") ? trimmed : `https://${trimmed}`).hostname || null;
+  } catch {
+    return null;
+  }
+}
+
+function configuredHostnames(): Set<string> {
+  const hosts = new Set<string>();
+  const add = (raw: string | undefined) => {
+    if (!raw) return;
+    const hostname = hostnameOf(raw);
+    if (!hostname) return;
+    hosts.add(hostname);
+    if (!hostname.startsWith("www.") && hostname.split(".").length === 2) {
+      hosts.add(`www.${hostname}`);
+    }
+  };
+  for (const part of (process.env.TURNSTILE_HOSTNAMES ?? "").split(",")) add(part);
+  add(process.env.VERCEL_PROJECT_PRODUCTION_URL);
+  return hosts;
+}
 
 export const turnstileSiteKey = process.env.TURNSTILE_SITE_KEY ?? "";
 
 export async function verifyTurnstile(token: unknown, action: string): Promise<void> {
   const secret = process.env.TURNSTILE_SECRET ?? "";
+  const expectedHostnames = configuredHostnames();
   if (!secret || !turnstileSiteKey) {
     if (process.env.NODE_ENV === "production") {
       throw new GuardError("Verification failed.");

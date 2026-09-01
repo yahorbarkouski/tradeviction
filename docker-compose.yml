@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: tradeviction-pg
+    environment:
+      POSTGRES_USER: tradeviction
+      POSTGRES_PASSWORD: tradeviction
+      POSTGRES_DB: tradeviction
+    ports:
+      - "5432:5432"
+    volumes:
+      - tradeviction-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tradeviction -d tradeviction"]
+      interval: 1s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  tradeviction-pg:

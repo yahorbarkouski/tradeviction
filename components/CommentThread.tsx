@@ -42,9 +42,9 @@ export function CommentThread({
     nodes.length === 0
       ? "No comments yet. Be the first to write one."
       : side === "long"
-        ? "No long theses yet."
+        ? "No long takes yet."
         : side === "short"
-          ? "No short theses yet."
+          ? "No short takes yet."
           : "No comments yet.";
 
   function select(nextSide: ThreadSide, nextSort: ThreadSort, event: MouseEvent<HTMLAnchorElement>) {

@@ -35,6 +35,9 @@ export async function migrate(query: Query): Promise<void> {
     if (!(await hasColumn(query, "users", "show_dead"))) {
       await query("ALTER TABLE users ADD COLUMN show_dead INTEGER NOT NULL DEFAULT 0");
     }
+    if (!(await hasColumn(query, "users", "trusted"))) {
+      await query("ALTER TABLE users ADD COLUMN trusted INTEGER NOT NULL DEFAULT 0");
+    }
   }
   if (await tableExists(query, "meta")) {
     const result = await query("SELECT value FROM meta WHERE key = ?", ["schema"]);

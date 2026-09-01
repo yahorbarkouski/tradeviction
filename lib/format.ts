@@ -1,8 +1,12 @@
-import type { Direction, FeedItem, Sort } from "@/lib/types";
+import type { Direction, EventKind, FeedItem, Sort } from "@/lib/types";
 import { HOTNESS_BREAKOUT } from "@/lib/market";
 
 export function stanceWord(direction: Direction): "long" | "short" {
   return direction;
+}
+
+export function eventKindLabel(kind: EventKind): string {
+  return kind === "thesis" ? "rewrote" : kind;
 }
 
 export function stanceTone(direction: Direction): "text-long" | "text-short" {

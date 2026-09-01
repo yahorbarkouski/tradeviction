@@ -1,5 +1,5 @@
 import { allRows } from "@/lib/db";
-import { int, intNull, str } from "@/lib/db/codec";
+import { int, intNull, intish, str } from "@/lib/db/codec";
 import {
   ATTENTION_MS,
   ELIGIBLE_AGE_MS,
@@ -34,6 +34,8 @@ export type WorldSlice = Slice & { startupId: string; conviction: number };
 
 type UserMeta = {
   createdAt: number;
+  muted: boolean;
+  trusted: boolean;
   firsts: number[];
 };
 
@@ -59,8 +61,13 @@ const memos = new WeakMap<World, Map<string, Memo>>();
 
 export async function loadWorld(now = Date.now()): Promise<World> {
   const users = new Map<string, UserMeta>();
-  for (const row of await allRows("SELECT id, created_at FROM users")) {
-    users.set(str(row, "id"), { createdAt: int(row, "created_at"), firsts: [] });
+  for (const row of await allRows("SELECT id, created_at, muted, trusted FROM users")) {
+    users.set(str(row, "id"), {
+      createdAt: int(row, "created_at"),
+      muted: intish(row, "muted") === 1,
+      trusted: intish(row, "trusted") === 1,
+      firsts: [],
+    });
   }
   const firsts = await allRows(`
     SELECT user_id, startup_id, MIN(at) AS first_at FROM (
@@ -143,7 +150,8 @@ export async function loadWorld(now = Date.now()): Promise<World> {
 
 export function accounted(world: World, userId: string, at: number): boolean {
   const user = world.users.get(userId);
-  if (!user) return false;
+  if (!user || user.muted) return false;
+  if (user.trusted) return true;
   if (at - user.createdAt < ELIGIBLE_AGE_MS) return false;
   let n = 0;
   for (const first of user.firsts) {

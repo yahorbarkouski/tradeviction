@@ -132,7 +132,7 @@ function FeedRow({ rank, item }: { rank: number; item: FeedItem }) {
 
 function Rank({ rank }: { rank: number }) {
   return (
-    <span className={cx(line, "w-[2.5ch] shrink-0 justify-end font-mono text-sm tabular-nums text-mute")}>
+    <span className={cx(line, "w-[2.5ch] shrink-0 justify-end font-mono text-sm tabular-nums text-mute pt-0.5")}>
       {rank}.
     </span>
   );
@@ -140,7 +140,7 @@ function Rank({ rank }: { rank: number }) {
 
 function IconLink({ item }: { item: FeedItem }) {
   return (
-    <Link href={`/s/${item.slug}`} className={cx(line, "shrink-0 hover:no-underline")} tabIndex={-1}>
+    <Link href={`/s/${item.slug}`} className={cx(line, "shrink-0 hover:no-underline pt-1")} tabIndex={-1}>
       <Favicon domain={item.domain} name={item.name} size={20} />
     </Link>
   );

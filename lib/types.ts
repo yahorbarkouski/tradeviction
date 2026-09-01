@@ -16,6 +16,7 @@ export type User = {
   createdAt: number;
   muted: boolean;
   showDead: boolean;
+  trusted: boolean;
 };
 
 export type Startup = {
@@ -130,6 +131,7 @@ export type Comment = {
   text: string;
   createdAt: number;
   points: number;
+  score: number;
   voted: boolean;
   own: boolean;
   dead: boolean;
@@ -165,6 +167,7 @@ export type PlayerStats = {
   karma: number;
   deployed: number;
   movesLeft: number;
+  established: boolean;
 };
 
 export type Leader = {

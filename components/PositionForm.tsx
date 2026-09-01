@@ -7,6 +7,7 @@ import { Honeypot } from "@/components/Honeypot";
 import { MetricLabel } from "@/components/Metric";
 import { CONVICTION_CAP, MOVES_PER_DAY } from "@/lib/game";
 import { formatAlpha, stanceTone, stanceWord } from "@/lib/format";
+import { NOTE_MAX } from "@/lib/slug";
 import { cx } from "@/lib/cx";
 import { area, btn, closeBtn, field, kicker, label, metric, qty, stance } from "@/lib/ui";
 import type { BookLine, Direction, Position } from "@/lib/types";
@@ -35,7 +36,7 @@ export function PositionForm({
   const conviction = parseConviction(convictionRaw);
   const [state, action, pending] = useActionState(bookAction, null);
   const room = CONVICTION_CAP - deployed + (current?.conviction ?? 0);
-  const ready = direction !== null && note.trim().length <= 500 && conviction <= room;
+  const ready = direction !== null && note.trim().length <= NOTE_MAX && conviction <= room;
   const thesisOnly =
     current !== null && direction === current.direction && conviction === current.conviction;
   const reducing =
@@ -94,14 +95,14 @@ export function PositionForm({
                 }}
               />
               <label className={field} htmlFor="note">
-                Thesis
+                Take
               </label>
               <textarea
                 className={area}
                 id="note"
                 name="note"
                 value={note}
-                maxLength={500}
+                maxLength={NOTE_MAX}
                 placeholder={
                   direction === "long"
                     ? "Founder has found a distribution loop nobody seems to understand yet."
@@ -109,7 +110,7 @@ export function PositionForm({
                 }
                 onChange={(e) => setNote(e.target.value)}
               />
-              <div className="mt-1 text-sm text-mute tabular-nums">{note.trim().length}/500</div>
+              <div className="mt-1 text-sm text-mute tabular-nums">{note.trim().length}/{NOTE_MAX}</div>
               {state?.error ? <p className="mt-2 text-short">{state.error}</p> : null}
               <button
                 className={`mt-3.5 ${btn}`}
@@ -264,7 +265,7 @@ function commitLabel(current: Position | null, direction: Direction, conviction:
   if (direction !== current.direction) {
     return `Close ${stanceWord(current.direction)}, open ${next}`;
   }
-  if (conviction === current.conviction) return "Update thesis";
+  if (conviction === current.conviction) return "Change take";
   if (conviction === 0) return "Reduce to 0, leave Pulse";
   if (conviction > current.conviction) return `Add Conviction · ${current.conviction} → ${conviction}`;
   return `Reduce · ${current.conviction} → ${conviction}`;

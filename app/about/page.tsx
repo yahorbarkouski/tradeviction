@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { MetricLabel, type MetricId } from "@/components/Metric";
 import { stanceTone } from "@/lib/format";
+import { ELIGIBLE_AGE_MS, ELIGIBLE_STARTUPS } from "@/lib/market";
+import { DAY_MS } from "@/lib/time";
 import { heading, page } from "@/lib/ui";
 
 export const metadata: Metadata = {
@@ -9,6 +11,7 @@ export const metadata: Metadata = {
 };
 
 export default function AboutPage() {
+  const eligibleDays = Math.round(ELIGIBLE_AGE_MS / DAY_MS);
   return (
     <article className={`${page} leading-[1.42]`}>
       <h1 className={heading}>How it works</h1>
@@ -37,6 +40,12 @@ export default function AboutPage() {
         </p>
         <p>
           Explain your position with arguments to earn <Term id="karma" />.
+        </p>
+        <p>
+          Anyone can vote the moment they sign up, and the number on a comment counts every vote.
+          Ranking weighs votes from established accounts in full: {eligibleDays} days old and{" "}
+          {ELIGIBLE_STARTUPS} companies touched. Votes from newer accounts weigh one tenth. Newer
+          takes rank above older ones with the same support.
         </p>
         <p>Bet your beliefs before they become common knowledge.</p>
       </div>

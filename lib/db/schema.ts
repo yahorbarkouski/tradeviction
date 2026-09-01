@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = "market-pg-1";
+export const SCHEMA_VERSION = "market-pg-2";
 
 export const SCHEMA = `
 CREATE EXTENSION IF NOT EXISTS citext;
@@ -9,7 +9,8 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash TEXT NOT NULL,
   created_at BIGINT NOT NULL,
   muted INTEGER NOT NULL DEFAULT 0,
-  show_dead INTEGER NOT NULL DEFAULT 0
+  show_dead INTEGER NOT NULL DEFAULT 0,
+  trusted INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS startups (

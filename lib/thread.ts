@@ -50,6 +50,6 @@ export function sortThread(nodes: ThreadNode[], sort: ThreadSort): ThreadNode[] 
     copy.sort((a, b) => b.createdAt - a.createdAt);
     return copy;
   }
-  copy.sort((a, b) => b.points - a.points || b.createdAt - a.createdAt);
+  copy.sort((a, b) => b.score - a.score || b.points - a.points || b.createdAt - a.createdAt);
   return copy;
 }

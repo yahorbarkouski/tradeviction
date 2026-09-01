@@ -5,6 +5,7 @@ import type { ActionState } from "@/app/actions";
 import { loginAction, registerAction } from "@/app/actions";
 import { Honeypot } from "@/components/Honeypot";
 import { Turnstile } from "@/components/Turnstile";
+import { PASSWORD_MAX, PASSWORD_MIN } from "@/lib/slug";
 import { btn, field, input } from "@/lib/ui";
 
 export function AuthForm({
@@ -61,7 +62,8 @@ export function AuthForm({
         type="password"
         autoComplete={mode === "login" ? "current-password" : "new-password"}
         required
-        minLength={mode === "register" ? 8 : 1}
+        minLength={mode === "register" ? PASSWORD_MIN : 1}
+        maxLength={PASSWORD_MAX}
       />
       {needTurnstile ? (
         <>

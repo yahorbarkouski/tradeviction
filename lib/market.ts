@@ -30,6 +30,8 @@ export const FLAG_KARMA = 5;
 export const VOUCH_KARMA = 10;
 export const FLAG_KILL = 3;
 export const FRESH_MS = 14 * DAY_MS;
+export const PROVISIONAL_WEIGHT = 0.1;
+export const RANK_HALF_LIFE_MS = 48 * 3_600_000;
 
 export type DirectionSign = -1 | 1;
 

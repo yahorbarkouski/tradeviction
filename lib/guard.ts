@@ -1,7 +1,11 @@
 import { headers } from "next/headers";
+import { isAdmin } from "@/lib/admin";
+import { run, withTransaction } from "@/lib/db";
 import { DAY_MS } from "@/lib/time";
 import { countRate, lastRate, logRate, type RateKind } from "@/lib/db/queries";
 import type { User } from "@/lib/types";
+
+type RateActor = User | { username: string };
 
 export class GuardError extends Error {
   constructor(message: string) {
@@ -21,6 +25,10 @@ function waitText(ms: number): string {
 
 function tooFast(waitMs: number): never {
   throw new GuardError(`You're posting too fast. Please slow down. ${waitText(waitMs)}`);
+}
+
+function actorId(user: RateActor | null): string | undefined {
+  return user && "createdAt" in user ? user.id : undefined;
 }
 
 function gapFromLast(last: number | null, gap: number, now: number): void {
@@ -55,54 +63,70 @@ function submitGap(ageMs: number): number {
   return 30 * 60_000;
 }
 
-export async function assertWrite(kind: RateKind, user: User | null): Promise<string> {
-  const ip = await clientIp();
+export async function assertWrite(kind: RateKind, user: RateActor | null, ip?: string): Promise<string> {
+  const from = ip ?? (await clientIp());
+  if (isAdmin(user)) return from;
   const now = Date.now();
   if (kind === "register") {
-    const burst = await lastRate({ ip, kind: "register" });
+    const burst = await lastRate({ ip: from, kind: "register" });
     gapFromLast(burst, 10 * 60_000, now);
-    if ((await countRate({ ip, kind: "register", since: now - DAY_MS })) >= 3) {
+    if ((await countRate({ ip: from, kind: "register", since: now - DAY_MS })) >= 3) {
       throw new GuardError("Too many accounts from this network today.");
     }
-    return ip;
+    return from;
   }
   if (kind === "login") {
-    if ((await countRate({ ip, kind: "login", since: now - 15 * 60_000 })) >= 12) {
+    if ((await countRate({ ip: from, kind: "login", since: now - 15 * 60_000 })) >= 12) {
       throw new GuardError("Too many login attempts. Please wait a few minutes.");
     }
-    return ip;
+    return from;
   }
-  if (!user) throw new GuardError("Login required.");
+  if (!user || !("createdAt" in user)) throw new GuardError("Login required.");
   const age = now - user.createdAt;
   if (kind === "vote") {
-    if (age < 30 * 60_000) throw new GuardError("Account too new to vote.");
-    if (user.muted) return ip;
     gapFromLast(await lastRate({ userId: user.id, kind: "vote" }), 2_000, now);
     if ((await countRate({ userId: user.id, kind: "vote", since: now - HOUR })) >= 40) {
       throw new GuardError("Vote limit for this hour. Please slow down.");
     }
-    return ip;
+    return from;
   }
   if (kind === "submit") {
     gapFromLast(await lastRate({ userId: user.id, kind: "submit" }), submitGap(age), now);
-    return ip;
+    return from;
   }
   if (kind === "comment") {
     gapFromLast(await lastRate({ userId: user.id, kind: "comment" }), commentGap(age), now);
-    return ip;
+    return from;
   }
   if (kind === "flag") {
-    if (age < 30 * 60_000) throw new GuardError("Account too new.");
     gapFromLast(await lastRate({ userId: user.id, kind: "flag" }), 2_000, now);
     if ((await countRate({ userId: user.id, kind: "flag", since: now - HOUR })) >= 30) {
       throw new GuardError("Too many flags this hour.");
     }
-    return ip;
+    return from;
   }
   gapFromLast(await lastRate({ userId: user.id, kind: "book" }), 5_000, now);
-  return ip;
+  return from;
 }
 
 export async function recordWrite(kind: RateKind, ip: string, userId: string | null): Promise<void> {
   await logRate({ userId, ip, kind });
+}
+
+// The limit check, the write, and the rate log share one transaction under a
+// per-actor advisory lock, so parallel requests cannot all pass the gap check.
+export async function guarded<T>(
+  kind: RateKind,
+  user: RateActor | null,
+  write: () => Promise<T>,
+  actorOf: (result: T) => string | null = () => actorId(user) ?? null,
+): Promise<T> {
+  const ip = await clientIp();
+  return await withTransaction(async () => {
+    await run("SELECT pg_advisory_xact_lock(hashtext(?))", [`${kind}:${actorId(user) ?? ip}`]);
+    await assertWrite(kind, user, ip);
+    const result = await write();
+    await recordWrite(kind, ip, actorOf(result));
+    return result;
+  });
 }

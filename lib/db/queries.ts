@@ -17,11 +17,15 @@ import {
 import {
   ACTIVE_MIN,
   CONVICTION_CAP,
+  ELIGIBLE_AGE_MS,
+  ELIGIBLE_STARTUPS,
   KARMA_DAY_CAP,
   KARMA_PAIR_CAP,
   KARMA_PAIR_WINDOW_MS,
   MOVES_PER_DAY,
   FLAG_KILL,
+  PROVISIONAL_WEIGHT,
+  RANK_HALF_LIFE_MS,
   quietHoldDays,
   utcDay,
 } from "@/lib/market";
@@ -78,6 +82,7 @@ function parseUser(row: Record<string, unknown>): User {
     createdAt: int(row, "created_at"),
     muted: intish(row, "muted") === 1,
     showDead: intish(row, "show_dead") === 1,
+    trusted: intish(row, "trusted") === 1,
   };
 }
 
@@ -163,13 +168,13 @@ const STARTUP_SELECT = `
 `;
 
 export async function getUserById(id: string): Promise<User | null> {
-  const row = await getRow("SELECT id, username, created_at, muted, show_dead FROM users WHERE id = ?", [id]);
+  const row = await getRow("SELECT id, username, created_at, muted, show_dead, trusted FROM users WHERE id = ?", [id]);
   return row ? parseUser(row) : null;
 }
 
 export async function getUserByUsername(username: string): Promise<UserRecord | null> {
   const row = await getRow(
-    "SELECT id, username, password_hash, created_at, muted, show_dead FROM users WHERE username = ? ",
+    "SELECT id, username, password_hash, created_at, muted, show_dead, trusted FROM users WHERE username = ?",
     [username],
   );
   return row ? parseUserRecord(row) : null;
@@ -178,13 +183,13 @@ export async function getUserByUsername(username: string): Promise<UserRecord | 
 export async function createUser(input: { username: string; passwordHash: string }): Promise<User> {
   const id = randomUUID();
   const createdAt = Date.now();
-  await run("INSERT INTO users (id, username, password_hash, created_at, muted, show_dead) VALUES (?, ?, ?, ?, 0, 0)", [
+  await run("INSERT INTO users (id, username, password_hash, created_at, muted, show_dead, trusted) VALUES (?, ?, ?, ?, 0, 0, 0)", [
     id,
     input.username,
     input.passwordHash,
     createdAt,
   ]);
-  return { id, username: input.username, createdAt, muted: false, showDead: false };
+  return { id, username: input.username, createdAt, muted: false, showDead: false, trusted: false };
 }
 
 export const RATE_KINDS = ["register", "login", "submit", "comment", "vote", "book", "flag"] as const;
@@ -406,6 +411,24 @@ export async function setMuted(userId: string, on: boolean): Promise<void> {
   await run("UPDATE users SET muted = ? WHERE id = ?", [on ? 1 : 0, userId]);
 }
 
+export async function setTrusted(userId: string, on: boolean): Promise<void> {
+  await run("UPDATE users SET trusted = ? WHERE id = ?", [on ? 1 : 0, userId]);
+}
+
+export async function listIpSiblings(userId: string): Promise<string[]> {
+  const rows = await allRows(
+    `SELECT DISTINCT u.username
+     FROM rate_log mine
+     JOIN rate_log other
+       ON other.ip = mine.ip AND other.user_id IS NOT NULL AND other.user_id <> mine.user_id
+     JOIN users u ON u.id = other.user_id
+     WHERE mine.user_id = ? AND mine.ip <> '0.0.0.0'
+     ORDER BY u.username`,
+    [userId],
+  );
+  return rows.map((row) => str(row, "username"));
+}
+
 export async function deleteUser(id: string): Promise<void> {
   await withTransaction(async () => {
     for (let n = 0; n < 64; n += 1) {
@@ -478,20 +501,70 @@ export async function listFeed(
   return { items: ranked.slice(start, start + PAGE_SIZE), total: ranked.length };
 }
 
-const DEAD_SQL = `(COALESCE(u.muted, 0) = 1 OR (COALESCE(fl.n, 0) >= ${FLAG_KILL} AND COALESCE(vh.n, 0) < COALESCE(fl.n, 0)))`;
+// One row per user with the weight a vote from them carries in rankings.
+// Mirrors accounted() in lib/engine.ts: muted 0, trusted 1, established 1,
+// everyone else provisional. Takes one param: the created_at cutoff for age.
+const VOTER_CTE = `
+  WITH touched AS (
+    SELECT user_id, COUNT(DISTINCT startup_id) AS n FROM (
+      SELECT user_id, startup_id FROM positions
+      UNION
+      SELECT user_id, startup_id FROM comments
+    ) t
+    GROUP BY user_id
+  ),
+  voter AS (
+    SELECT u.id,
+           CASE
+             WHEN COALESCE(u.muted, 0) = 1 THEN 0
+             WHEN COALESCE(u.trusted, 0) = 1 THEN 1
+             WHEN u.created_at <= ? AND COALESCE(t.n, 0) >= ${ELIGIBLE_STARTUPS} THEN 1
+             ELSE ${PROVISIONAL_WEIGHT}
+           END AS weight
+    FROM users u
+    LEFT JOIN touched t ON t.user_id = u.id
+  )`;
 
-const FLAG_JOINS = `
-     LEFT JOIN (SELECT comment_id, COUNT(*) AS n FROM comment_flags GROUP BY comment_id) fl
-       ON fl.comment_id = c.id
-     LEFT JOIN (SELECT comment_id, COUNT(*) AS n FROM comment_vouches GROUP BY comment_id) vh
-       ON vh.comment_id = c.id
+function voterCutoff(now: number): number {
+  return now - ELIGIBLE_AGE_MS;
+}
+
+const DEAD_SQL = `(COALESCE(u.muted, 0) = 1
+  OR (COALESCE(fl.n, 0) >= GREATEST(${FLAG_KILL}, CEIL(COALESCE(v.score, 0) / 2.0))
+      AND COALESCE(vh.n, 0) < COALESCE(fl.n, 0)))`;
+
+// points: how many unmuted accounts clicked. score: those clicks weighted by voter.
+const POINT_JOINS = `
+     LEFT JOIN (
+       SELECT cv.comment_id,
+              COUNT(*) FILTER (WHERE w.weight > 0) AS points,
+              SUM(w.weight) AS score
+       FROM comment_votes cv
+       JOIN voter w ON w.id = cv.user_id
+       GROUP BY cv.comment_id
+     ) v ON v.comment_id = c.id
+     LEFT JOIN (
+       SELECT f.comment_id, COUNT(*) AS n
+       FROM comment_flags f
+       JOIN users fu ON fu.id = f.user_id AND COALESCE(fu.muted, 0) = 0
+       GROUP BY f.comment_id
+     ) fl ON fl.comment_id = c.id
+     LEFT JOIN (
+       SELECT x.comment_id, COUNT(*) AS n
+       FROM comment_vouches x
+       JOIN users xu ON xu.id = x.user_id AND COALESCE(xu.muted, 0) = 0
+       GROUP BY x.comment_id
+     ) vh ON vh.comment_id = c.id
      LEFT JOIN comment_flags myf ON myf.comment_id = c.id AND myf.user_id = ?
      LEFT JOIN comment_vouches myv ON myv.comment_id = c.id AND myv.user_id = ?`;
+
+const RANK_SQL = `COALESCE(v.score, 0)::float8 * POWER(0.5::float8, (? - c.created_at)::float8 / ${RANK_HALF_LIFE_MS})`;
 
 export async function listFrontComments(
   viewerId: string | null,
   page = 1,
   showDead = false,
+  now = Date.now(),
 ): Promise<{ items: FrontComment[]; total: number }> {
   const voted = new Set<string>();
   if (viewerId) {
@@ -501,19 +574,22 @@ export async function listFrontComments(
   }
   const who = viewerId ?? "";
   const deadOk = showDead ? 1 : 0;
+  const cutoff = voterCutoff(now);
   const visible = `AND (c.user_id = ? OR ? = 1 OR NOT ${DEAD_SQL})`;
   const totalRow = await getRow(
-    `SELECT COUNT(*) AS n FROM comments c
+    `${VOTER_CTE}
+     SELECT COUNT(*) AS n FROM comments c
      JOIN users u ON u.id = c.user_id
-     ${FLAG_JOINS}
+     ${POINT_JOINS}
      WHERE c.parent_id IS NULL ${visible}`,
-    [who, who, who, deadOk],
+    [cutoff, who, who, who, deadOk],
   );
   const total = totalRow ? intish(totalRow, "n") : 0;
   const start = (page - 1) * FRONT_PAGE;
   const rows = await allRows(
-    `SELECT c.*, u.username, u.created_at AS author_created_at, s.slug AS startup_slug, s.name AS startup_name,
-            COALESCE(v.points, 0) AS points, COALESCE(r.replies, 0) AS replies,
+    `${VOTER_CTE}
+     SELECT c.*, u.username, u.created_at AS author_created_at, s.slug AS startup_slug, s.name AS startup_name,
+            COALESCE(v.points, 0) AS points, COALESCE(v.score, 0) AS score, COALESCE(r.replies, 0) AS replies,
             p.direction AS p_direction, p.conviction AS p_conviction,
             CASE WHEN ${DEAD_SQL} THEN 1 ELSE 0 END AS dead,
             CASE WHEN myf.user_id IS NULL THEN 0 ELSE 1 END AS flagged,
@@ -521,16 +597,15 @@ export async function listFrontComments(
      FROM comments c
      JOIN users u ON u.id = c.user_id
      JOIN startups s ON s.id = c.startup_id
+     JOIN voter aw ON aw.id = c.user_id
      LEFT JOIN positions p ON p.id = c.position_id
-     LEFT JOIN (SELECT comment_id, COUNT(*) AS points FROM comment_votes GROUP BY comment_id) v
-       ON v.comment_id = c.id
      LEFT JOIN (SELECT parent_id, COUNT(*) AS replies FROM comments WHERE parent_id IS NOT NULL GROUP BY parent_id) r
        ON r.parent_id = c.id
-     ${FLAG_JOINS}
+     ${POINT_JOINS}
      WHERE c.parent_id IS NULL ${visible}
-     ORDER BY points DESC, c.created_at DESC
+     ORDER BY ${RANK_SQL} DESC, aw.weight DESC, c.created_at DESC
      LIMIT ? OFFSET ?`,
-    [who, who, who, deadOk, FRONT_PAGE, start],
+    [cutoff, who, who, who, deadOk, now, FRONT_PAGE, start],
   );
   return {
     items: rows.map((row) => ({
@@ -918,10 +993,16 @@ export async function applyBookChange(input: {
   });
 }
 
-export async function getCommentById(id: string, viewerId: string | null = null): Promise<Comment | null> {
+export async function getCommentById(
+  id: string,
+  viewerId: string | null = null,
+  now = Date.now(),
+): Promise<Comment | null> {
   const who = viewerId ?? "";
   const row = await getRow(
-    `SELECT c.*, u.username, u.created_at AS author_created_at, COALESCE(v.points, 0) AS points,
+    `${VOTER_CTE}
+     SELECT c.*, u.username, u.created_at AS author_created_at,
+            COALESCE(v.points, 0) AS points, COALESCE(v.score, 0) AS score,
             CASE WHEN ${DEAD_SQL} THEN 1 ELSE 0 END AS dead,
             CASE WHEN myf.user_id IS NULL THEN 0 ELSE 1 END AS flagged,
             CASE WHEN myv.user_id IS NULL THEN 0 ELSE 1 END AS vouched,
@@ -929,11 +1010,9 @@ export async function getCommentById(id: string, viewerId: string | null = null)
      FROM comments c
      JOIN users u ON u.id = c.user_id
      LEFT JOIN positions p ON p.id = c.position_id
-     LEFT JOIN (SELECT comment_id, COUNT(*) AS points FROM comment_votes GROUP BY comment_id) v
-       ON v.comment_id = c.id
-     ${FLAG_JOINS}
+     ${POINT_JOINS}
      WHERE c.id = ?`,
-    [who, who, id],
+    [voterCutoff(now), who, who, id],
   );
   if (!row) return null;
   return hydrateComment(row, viewerId, new Set());
@@ -961,6 +1040,7 @@ function hydrateComment(row: Record<string, unknown>, viewerId: string | null, v
     text: str(row, "text"),
     createdAt: int(row, "created_at"),
     points: intish(row, "points"),
+    score: numNull(row, "score") ?? 0,
     voted: voted.has(id),
     own: viewerId === userId,
     dead: intish(row, "dead") === 1,
@@ -975,6 +1055,7 @@ export async function listThread(
   startupId: string,
   viewerId: string | null,
   showDead = false,
+  now = Date.now(),
 ): Promise<ThreadNode[]> {
   const voted = new Set<string>();
   if (viewerId) {
@@ -990,7 +1071,9 @@ export async function listThread(
   const who = viewerId ?? "";
   const deadOk = showDead ? 1 : 0;
   const rows = await allRows(
-    `SELECT c.*, u.username, u.created_at AS author_created_at, COALESCE(v.points, 0) AS points,
+    `${VOTER_CTE}
+     SELECT c.*, u.username, u.created_at AS author_created_at,
+            COALESCE(v.points, 0) AS points, COALESCE(v.score, 0) AS score,
             p.direction AS p_direction, p.conviction AS p_conviction,
             CASE WHEN ${DEAD_SQL} THEN 1 ELSE 0 END AS dead,
             CASE WHEN myf.user_id IS NULL THEN 0 ELSE 1 END AS flagged,
@@ -998,12 +1081,10 @@ export async function listThread(
      FROM comments c
      JOIN users u ON u.id = c.user_id
      LEFT JOIN positions p ON p.id = c.position_id AND p.closed_at IS NULL
-     LEFT JOIN (SELECT comment_id, COUNT(*) AS points FROM comment_votes GROUP BY comment_id) v
-       ON v.comment_id = c.id
-     ${FLAG_JOINS}
+     ${POINT_JOINS}
      WHERE c.startup_id = ? AND (c.user_id = ? OR ? = 1 OR NOT ${DEAD_SQL})
      ORDER BY c.created_at ASC`,
-    [who, who, startupId, who, deadOk],
+    [voterCutoff(now), who, who, startupId, who, deadOk],
   );
   const nodes = new Map<string, ThreadNode>();
   const roots: ThreadNode[] = [];
@@ -1016,7 +1097,7 @@ export async function listThread(
     if (parent) parent.kids.push(node);
     else if (!node.parentId) roots.push(node);
   }
-  roots.sort((a, b) => b.points - a.points || b.createdAt - a.createdAt);
+  roots.sort((a, b) => b.score - a.score || b.points - a.points || b.createdAt - a.createdAt);
   return roots;
 }
 
@@ -1048,6 +1129,7 @@ export async function insertReply(input: {
     text: input.text,
     createdAt,
     points: 0,
+    score: 0,
     voted: false,
     own: true,
     dead: false,
@@ -1148,6 +1230,7 @@ export async function lookupStartups(q: string): Promise<LookupHit[]> {
   const ident = identityFromUrl(trimmed);
   const exact = ident ? await getStartupByDomain(ident.domain) : null;
   const needle = ident?.domain ?? trimmed.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+  if (needle.replace(/[%_\\]/g, "").length < 2) return [];
   const like = safeLike(needle.toLowerCase());
   const rows = await allRows(
     `${STARTUP_SELECT}
@@ -1456,11 +1539,13 @@ export async function listLeaders(now = Date.now(), limit = PAGE_SIZE): Promise<
 }
 
 export async function getPlayerStats(userId: string, now = Date.now()): Promise<PlayerStats> {
+  const world = await loadWorld(now);
   return {
-    alpha: await getPlayerAlpha(userId, now),
-    karma: await getKarma(userId),
+    alpha: await getPlayerAlpha(userId, now, world),
+    karma: await getKarma(userId, now),
     deployed: await countDeployed(userId),
     movesLeft: await movesLeft(userId, now),
+    established: accounted(world, userId, now),
   };
 }
 

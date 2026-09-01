@@ -12,6 +12,8 @@ type TurnstileApi = {
       sitekey: string;
       action: string;
       callback: (token: string) => void;
+      "error-callback"?: (errorCode: string) => boolean | void;
+      "expired-callback"?: () => void;
     },
   ) => TurnstileWidgetId;
   reset: (widgetId: TurnstileWidgetId) => void;
@@ -42,6 +44,14 @@ export function Turnstile({
       sitekey: siteKey,
       action,
       callback: onToken,
+      "error-callback": () => {
+        onToken("");
+        return true;
+      },
+      "expired-callback": () => {
+        onToken("");
+        if (widgetIdRef.current !== null) window.turnstile?.reset(widgetIdRef.current);
+      },
     });
   }, [siteKey, action, onToken, widgetIdRef]);
 

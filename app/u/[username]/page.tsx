@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { closeAction, logoutAction, showDeadAction, adminMuteAction } from "@/app/actions";
+import { adminMuteAction, adminTrustAction, closeAction, logoutAction, showDeadAction } from "@/app/actions";
 import { ClosePositionForm } from "@/components/PositionForm";
 import { Favicon } from "@/components/Favicon";
 import { MetricLabel } from "@/components/Metric";
@@ -11,12 +11,13 @@ import {
   alphaRank,
   getPlayerStats,
   getUserByUsername,
+  listIpSiblings,
   listUserBook,
   listUserReceipts,
 } from "@/lib/db/queries";
 import { formatAlpha, formatRank, formatWhen, stanceTone, stanceWord } from "@/lib/format";
-import { FRESH_MS } from "@/lib/market";
-import { nowMs } from "@/lib/time";
+import { ELIGIBLE_AGE_MS, ELIGIBLE_STARTUPS, FRESH_MS } from "@/lib/market";
+import { DAY_MS, nowMs } from "@/lib/time";
 import { bookAlt, loadProfileBook } from "@/lib/share";
 import { heading, kicker } from "@/lib/ui";
 import { cx } from "@/lib/cx";
@@ -54,6 +55,8 @@ export default async function ProfilePage({
   const viewer = await getCurrentUser();
   const own = viewer?.id === user.id;
   const rank = await alphaRank(user.id, now);
+  const siblings = isAdmin(viewer) ? await listIpSiblings(user.id) : [];
+  const eligibleDays = Math.round(ELIGIBLE_AGE_MS / DAY_MS);
 
   return (
     <>
@@ -105,6 +108,7 @@ export default async function ProfilePage({
         {isAdmin(viewer) && !isAdmin(user) ? (
           <>
             {user.muted ? " · muted" : null}
+            {user.trusted ? " · trusted" : null}
             {" · "}
             <form action={adminMuteAction} className="contents">
               <input type="hidden" name="username" value={user.username} />
@@ -117,10 +121,38 @@ export default async function ProfilePage({
               </button>
             </form>
             {" · "}
+            <form action={adminTrustAction} className="contents">
+              <input type="hidden" name="username" value={user.username} />
+              <input type="hidden" name="on" value={user.trusted ? "0" : "1"} />
+              <button
+                type="submit"
+                className="cursor-pointer border-0 bg-transparent p-0 font-sans text-sm text-mute hover:underline decoration-1 underline-offset-[0.12em]"
+              >
+                {user.trusted ? "untrust" : "trust"}
+              </button>
+            </form>
+            {" · "}
             <Link href={`/u/${user.username}/delete`}>delete</Link>
           </>
         ) : null}
       </div>
+      {own && !stats.established ? (
+        <p className="mt-1.5 text-sm text-mute text-pretty">
+          New account: your votes count at reduced weight in rankings until this account is {eligibleDays} days
+          old and has touched {ELIGIBLE_STARTUPS} companies.
+        </p>
+      ) : null}
+      {siblings.length > 0 ? (
+        <p className="mt-1.5 text-sm text-mute text-pretty">
+          also seen from the same network:{" "}
+          {siblings.map((name, i) => (
+            <span key={name}>
+              {i > 0 ? ", " : null}
+              <Link href={`/u/${name}`}>{name}</Link>
+            </span>
+          ))}
+        </p>
+      ) : null}
 
       <div className="mt-4">
         <h2 className={cx(kicker, "mt-5 mb-1.5 text-long")}>long</h2>

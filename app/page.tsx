@@ -27,7 +27,7 @@ export default async function Home({
 
   const viewer = await getCurrentUser();
   const karma = viewer ? await getKarma(viewer.id, now) : 0;
-  const { items, total } = await listFrontComments(viewer?.id ?? null, page, seesDead(viewer));
+  const { items, total } = await listFrontComments(viewer?.id ?? null, page, seesDead(viewer), now);
   return (
     <FrontComments items={items} page={page} total={total} viewer={viewer} now={now} karma={karma} />
   );

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MetricValue } from "@/components/Metric";
 import { getMarket, getStartupBySlug, listEventsForStartup } from "@/lib/db/queries";
-import { formatAge, formatDepth, stanceWord } from "@/lib/format";
+import { eventKindLabel, formatAge, formatDepth, stanceWord } from "@/lib/format";
 import { nowMs } from "@/lib/time";
 import { cx } from "@/lib/cx";
 import { heading, statLine } from "@/lib/ui";
@@ -55,7 +55,7 @@ export default async function MovesPage({
                     event.direction === "short" && "text-short",
                   )}
                 >
-                  {event.kind}
+                  {eventKindLabel(event.kind)}
                   {event.direction ? ` ${stanceWord(event.direction)}` : ""}
                   {event.conviction !== null ? ` ${event.conviction}` : ""}
                 </span>

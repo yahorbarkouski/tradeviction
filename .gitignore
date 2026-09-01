@@ -48,3 +48,6 @@ next-env.d.ts
 
 # local OG inspection dumps
 /og-preview/
+
+# claude code worktrees
+.claude/worktrees/

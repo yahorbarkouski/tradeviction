@@ -46,7 +46,7 @@ export default async function ThesisPage({
   if (!loaded) notFound();
   const now = nowMs();
   const viewer = await getCurrentUser();
-  const thread = await listThread(loaded.startup.id, viewer?.id ?? null, seesDead(viewer));
+  const thread = await listThread(loaded.startup.id, viewer?.id ?? null, seesDead(viewer), now);
   const node = findThreadNode(thread, id) ?? { ...loaded.comment, kids: [] };
   const href = commentPath(slug, id);
   return (

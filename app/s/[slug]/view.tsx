@@ -32,7 +32,7 @@ export async function StartupView({
   const viewer = await getCurrentUser();
   const [market, thread, line] = await Promise.all([
     getMarket(startup.id, now),
-    listThread(startup.id, viewer?.id ?? null, seesDead(viewer)),
+    listThread(startup.id, viewer?.id ?? null, seesDead(viewer), now),
     viewer ? getBookLine(startup.id, viewer.id, now) : Promise.resolve(null),
   ]);
   const side = query.side && isThreadSide(query.side) ? query.side : "all";
