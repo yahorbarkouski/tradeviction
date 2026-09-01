@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { AdminCommentEdit, AdminCommentMeta } from "@/components/AdminComment";
 import { FlagVouch } from "@/components/FlagVouch";
 import { ReplyForm } from "@/components/ReplyForm";
 import { UserLink } from "@/components/UserLink";
@@ -79,6 +80,7 @@ function CommentNode({
 }) {
   const pos = node.position;
   const dest = commentPath(slug, node.id);
+  const [editing, setEditing] = useState(false);
   return (
     <div
       className={cx(
@@ -111,9 +113,24 @@ function CommentNode({
             next={dest}
             viewer={viewer}
           />
+          <AdminCommentMeta
+            commentId={node.id}
+            viewer={viewer}
+            next={href}
+            onEdit={() => setEditing(true)}
+          />
         </div>
       </div>
-      <div className="mt-1 text-pretty">{node.text}</div>
+      {editing ? (
+        <AdminCommentEdit
+          commentId={node.id}
+          text={node.text}
+          next={href}
+          onCancel={() => setEditing(false)}
+        />
+      ) : (
+        <div className="mt-1 text-pretty">{node.text}</div>
+      )}
       <div className="mt-1 text-sm text-mute">
         {node.points} useful
         {" · "}

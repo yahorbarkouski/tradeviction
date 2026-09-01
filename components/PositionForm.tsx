@@ -35,8 +35,7 @@ export function PositionForm({
   const conviction = parseConviction(convictionRaw);
   const [state, action, pending] = useActionState(bookAction, null);
   const room = CONVICTION_CAP - deployed + (current?.conviction ?? 0);
-  const ready =
-    direction !== null && note.trim().length >= 20 && note.trim().length <= 500 && conviction <= room;
+  const ready = direction !== null && note.trim().length <= 500 && conviction <= room;
   const thesisOnly =
     current !== null && direction === current.direction && conviction === current.conviction;
   const reducing =
@@ -102,9 +101,7 @@ export function PositionForm({
                 id="note"
                 name="note"
                 value={note}
-                minLength={20}
                 maxLength={500}
-                required
                 placeholder={
                   direction === "long"
                     ? "Founder has found a distribution loop nobody seems to understand yet."

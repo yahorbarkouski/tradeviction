@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { closeAction, logoutAction, showDeadAction } from "@/app/actions";
+import { closeAction, logoutAction, showDeadAction, adminMuteAction } from "@/app/actions";
 import { ClosePositionForm } from "@/components/PositionForm";
 import { Favicon } from "@/components/Favicon";
 import { MetricLabel } from "@/components/Metric";
 import { getCurrentUser } from "@/lib/auth";
+import { isAdmin } from "@/lib/admin";
 import {
   alphaRank,
   getPlayerStats,
@@ -99,6 +100,24 @@ export default async function ProfilePage({
                 logout
               </button>
             </form>
+          </>
+        ) : null}
+        {isAdmin(viewer) && !isAdmin(user) ? (
+          <>
+            {user.muted ? " · muted" : null}
+            {" · "}
+            <form action={adminMuteAction} className="contents">
+              <input type="hidden" name="username" value={user.username} />
+              <input type="hidden" name="on" value={user.muted ? "0" : "1"} />
+              <button
+                type="submit"
+                className="cursor-pointer border-0 bg-transparent p-0 font-sans text-sm text-mute hover:underline decoration-1 underline-offset-[0.12em]"
+              >
+                {user.muted ? "unmute" : "mute"}
+              </button>
+            </form>
+            {" · "}
+            <Link href={`/u/${user.username}/delete`}>delete</Link>
           </>
         ) : null}
       </div>

@@ -1,6 +1,7 @@
 import { FeedList } from "@/components/FeedList";
 import { FrontComments } from "@/components/FrontComments";
 import { getCurrentUser } from "@/lib/auth";
+import { seesDead } from "@/lib/admin";
 import { ensureCatalog } from "@/lib/catalog";
 import { getKarma, listFeed, listFrontComments } from "@/lib/db/queries";
 import { isSort } from "@/lib/types";
@@ -26,7 +27,7 @@ export default async function Home({
 
   const viewer = await getCurrentUser();
   const karma = viewer ? await getKarma(viewer.id, now) : 0;
-  const { items, total } = await listFrontComments(viewer?.id ?? null, page, viewer?.showDead ?? false);
+  const { items, total } = await listFrontComments(viewer?.id ?? null, page, seesDead(viewer));
   return (
     <FrontComments items={items} page={page} total={total} viewer={viewer} now={now} karma={karma} />
   );

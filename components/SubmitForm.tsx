@@ -5,6 +5,8 @@ import { useActionState, useEffect, useState } from "react";
 import { submitStartupAction } from "@/app/actions";
 import { Favicon } from "@/components/Favicon";
 import { Honeypot } from "@/components/Honeypot";
+import { cx } from "@/lib/cx";
+import { faviconDomain } from "@/lib/domain";
 import type { LookupHit } from "@/lib/types";
 import { btn, fieldHead, input } from "@/lib/ui";
 
@@ -43,6 +45,8 @@ export function SubmitForm() {
   const q = url.trim();
   const shown = result && result.q === q ? result.hits : [];
   const exact = shown.find((hit) => hit.exact) ?? null;
+  const iconDomain = faviconDomain(url);
+  const iconName = iconDomain?.split("/")[0]?.split(".")[0] ?? "";
 
   return (
     <form action={action} className="flex max-w-md flex-col gap-3.5">
@@ -51,16 +55,23 @@ export function SubmitForm() {
         <label className={fieldHead} htmlFor="url">
           url or domain
         </label>
-        <input
-          className={input}
-          id="url"
-          name="url"
-          value={url}
-          required
-          autoComplete="off"
-          placeholder="linear.app"
-          onChange={(e) => setUrl(e.target.value)}
-        />
+        <div className="flex items-stretch">
+          <input
+            className={cx(input, "min-w-0 max-w-none flex-1", iconDomain && "border-r-0")}
+            id="url"
+            name="url"
+            value={url}
+            required
+            autoComplete="off"
+            placeholder="linear.app"
+            onChange={(e) => setUrl(e.target.value)}
+          />
+          {iconDomain ? (
+            <span className="flex aspect-square shrink-0 items-center justify-center border border-line p-1">
+              <Favicon domain={iconDomain} name={iconName} size={32} />
+            </span>
+          ) : null}
+        </div>
       </div>
       {exact ? (
         <div className="border border-line p-4">

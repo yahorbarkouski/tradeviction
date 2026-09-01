@@ -180,6 +180,14 @@ export function identityFromUrl(raw: string): SiteIdentity | null {
   return { domain, canonicalUrl: `https://${domain}` };
 }
 
+export function faviconDomain(raw: string): string | null {
+  const ident = identityFromUrl(raw);
+  if (!ident) return null;
+  const host = ident.domain.split("/")[0] ?? "";
+  if (!host.includes(".") && !isIp(host)) return null;
+  return ident.domain;
+}
+
 function codeHostIdentity(host: string, segs: string[]): SiteIdentity {
   const a = segs[0]?.replace(/\.git$/i, "");
   if (!a || CODE_SKIP.has(a.toLowerCase())) {

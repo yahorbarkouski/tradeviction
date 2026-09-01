@@ -16,6 +16,6 @@ export function parseUsername(raw: string): string | null {
 
 export function parseNote(raw: string): string | null {
   const note = raw.trim().replace(/\s+/g, " ");
-  if (note.length < 20 || note.length > 500) return null;
+  if (note.length > 500) return null;
   return note;
 }

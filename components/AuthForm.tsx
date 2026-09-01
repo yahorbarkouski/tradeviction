@@ -19,7 +19,8 @@ export function AuthForm({
   const action = mode === "login" ? loginAction : registerAction;
   const widgetId = useRef<string | null>(null);
   const [token, setToken] = useState("");
-  const needTurnstile = mode === "register" && turnstileSiteKey.length > 0;
+  const needTurnstile = turnstileSiteKey.length > 0;
+  const turnstileAction = mode === "login" ? "login" : "signup";
   const [state, formAction, pending] = useActionState(
     async (previous: ActionState, formData: FormData) => {
       try {
@@ -67,7 +68,7 @@ export function AuthForm({
           <input type="hidden" name="cf-turnstile-response" value={token} />
           <Turnstile
             siteKey={turnstileSiteKey}
-            action="signup"
+            action={turnstileAction}
             onToken={setToken}
             widgetIdRef={widgetId}
           />

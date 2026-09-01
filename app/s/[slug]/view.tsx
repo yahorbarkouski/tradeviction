@@ -1,7 +1,9 @@
+import Link from "next/link";
 import { CommentThread } from "@/components/CommentThread";
 import { Favicon } from "@/components/Favicon";
 import { PositionForm, StanceLinks } from "@/components/PositionForm";
 import { PulseBoard } from "@/components/StanceSplit";
+import { isAdmin, seesDead } from "@/lib/admin";
 import { getCurrentUser } from "@/lib/auth";
 import {
   countDeployed,
@@ -30,7 +32,7 @@ export async function StartupView({
   const viewer = await getCurrentUser();
   const [market, thread, line] = await Promise.all([
     getMarket(startup.id, now),
-    listThread(startup.id, viewer?.id ?? null, viewer?.showDead ?? false),
+    listThread(startup.id, viewer?.id ?? null, seesDead(viewer)),
     viewer ? getBookLine(startup.id, viewer.id, now) : Promise.resolve(null),
   ]);
   const side = query.side && isThreadSide(query.side) ? query.side : "all";
@@ -57,6 +59,14 @@ export async function StartupView({
                 <a href={`https://news.ycombinator.com/item?id=${startup.sourceId}`} rel="noreferrer" target="_blank">
                   Show HN
                 </a>
+              </>
+            ) : null}
+            {isAdmin(viewer) ? (
+              <>
+                {" · "}
+                <Link href={`/s/${startup.slug}/edit`}>edit</Link>
+                {" · "}
+                <Link href={`/s/${startup.slug}/delete`}>delete</Link>
               </>
             ) : null}
           </p>

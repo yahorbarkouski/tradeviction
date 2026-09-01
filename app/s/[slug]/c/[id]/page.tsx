@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ThreadList } from "@/components/ThreadList";
 import { getCurrentUser } from "@/lib/auth";
+import { seesDead } from "@/lib/admin";
 import { getKarma, listThread } from "@/lib/db/queries";
 import { clip, loadThesis, OG_SIZE, thesisAlt } from "@/lib/share";
 import { commentPath, findThreadNode } from "@/lib/thread";
@@ -45,7 +46,7 @@ export default async function ThesisPage({
   if (!loaded) notFound();
   const now = nowMs();
   const viewer = await getCurrentUser();
-  const thread = await listThread(loaded.startup.id, viewer?.id ?? null, viewer?.showDead ?? false);
+  const thread = await listThread(loaded.startup.id, viewer?.id ?? null, seesDead(viewer));
   const node = findThreadNode(thread, id) ?? { ...loaded.comment, kids: [] };
   const href = commentPath(slug, id);
   return (
