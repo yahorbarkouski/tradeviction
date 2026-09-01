@@ -32,10 +32,19 @@ export async function GET(req: Request) {
   const text = TEXTS[key];
   if (!text) return new Response("unknown len", { status: 400 });
   const side: Direction = url.searchParams.get("side") === "short" ? "short" : "long";
-  const icon = await faviconSrc(SAMPLE.domain);
+  const name = url.searchParams.get("name") ?? SAMPLE.name;
+  const domain = url.searchParams.get("domain") ?? SAMPLE.domain;
+  const startup: Startup = {
+    ...SAMPLE,
+    name,
+    domain,
+    slug: domain.split(".")[0] ?? SAMPLE.slug,
+    url: `https://${domain}`,
+  };
+  const icon = await faviconSrc(startup.domain);
   return ogImage(
     <ThesisOg
-      startup={SAMPLE}
+      startup={startup}
       text={text}
       username="alice"
       pulse={70}

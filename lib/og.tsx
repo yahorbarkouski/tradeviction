@@ -1,5 +1,6 @@
 import type { ReactElement, ReactNode } from "react";
 import { ImageResponse } from "next/og";
+import sharp from "sharp";
 import { formatAlpha, phaseLabel } from "@/lib/format";
 import { iconMark, iconSources } from "@/lib/icon";
 import { clip, OG_SIZE, OG_TYPE } from "@/lib/share";
@@ -40,6 +41,28 @@ function loadFonts(): Promise<ArrayBuffer[]> {
   return fontCache;
 }
 
+async function tightenIcon(buf: ArrayBuffer): Promise<Buffer | null> {
+  try {
+    const trimmed = await sharp(Buffer.from(buf)).ensureAlpha().trim({ threshold: 28 }).png().toBuffer({
+      resolveWithObject: true,
+    });
+    const side = Math.max(trimmed.info.width, trimmed.info.height);
+    const pad = Math.max(2, Math.round(side * 0.06));
+    return await sharp(trimmed.data)
+      .extend({
+        top: pad,
+        left: pad,
+        bottom: pad,
+        right: pad,
+        background: { r: 0, g: 0, b: 0, alpha: 0 },
+      })
+      .png()
+      .toBuffer();
+  } catch {
+    return null;
+  }
+}
+
 export async function ogImage(element: ReactElement): Promise<ImageResponse> {
   const [sans400, sans500, sans600, mono500] = await loadFonts();
   return new ImageResponse(element, {
@@ -63,7 +86,9 @@ export async function faviconSrc(domain: string, size = 128): Promise<string | n
     if (buf.byteLength < 32 || buf.byteLength > 200_000) return null;
     const mime = response.headers.get("content-type")?.split(";")[0] ?? "image/png";
     if (!mime.startsWith("image/")) return null;
-    return `data:${mime};base64,${Buffer.from(buf).toString("base64")}`;
+    const tight = await tightenIcon(buf);
+    const payload = tight ?? Buffer.from(buf);
+    return `data:${tight ? "image/png" : mime};base64,${payload.toString("base64")}`;
   } catch {
     return null;
   }
@@ -184,15 +209,14 @@ function Mark({
         display: "flex",
         width: size,
         height: size,
-        marginRight: 22,
+        marginRight: 8,
         alignItems: "center",
         justifyContent: "center",
         flexShrink: 0,
-        overflow: "hidden",
       }}
     >
       {src ? (
-        <img src={src} width={size} height={size} alt="" style={{ transform: "scale(1.22)" }} />
+        <img src={src} width={size} height={size} alt="" style={{ objectFit: "contain" }} />
       ) : (
         <div style={{ display: "flex", fontSize: size > 56 ? 28 : 20, fontFamily: MONO, fontWeight: 500 }}>
           {iconMark(name, domain, size)}
@@ -494,18 +518,31 @@ function clipThesis(text: string, n: number): string {
   return `${head}…`;
 }
 
-const THESIS_FIT = [
-  { upTo: 70, fontSize: 52, maxChars: 70, lines: 2 },
-  { upTo: 140, fontSize: 46, maxChars: 140, lines: 3 },
-  { upTo: 220, fontSize: 42, maxChars: 220, lines: 4 },
-  { upTo: 300, fontSize: 38, maxChars: 240, lines: 5 },
-  { upTo: Infinity, fontSize: 36, maxChars: 220, lines: 5 },
-] as const;
+const QUOTE_W = 1072;
+const QUOTE_LH = 1.14;
+const QUOTE_GLYPH = 0.49;
+const QUOTE_SHORT = 76;
+const QUOTE_FILL = 64;
+const QUOTE_FILL_LINES = 4;
+
+function quoteCap(fontSize: number, lines: number): number {
+  return Math.floor((QUOTE_W / (fontSize * QUOTE_GLYPH)) * lines);
+}
 
 function fitThesis(text: string): { fontSize: number; shown: string; lines: number } {
   const t = text.trim();
-  const rule = THESIS_FIT.find((row) => t.length <= row.upTo) ?? THESIS_FIT[THESIS_FIT.length - 1];
-  return { fontSize: rule.fontSize, shown: clipThesis(t, rule.maxChars), lines: rule.lines };
+  const two = quoteCap(QUOTE_SHORT, 2);
+  if (t.length <= two) return { fontSize: QUOTE_SHORT, shown: t, lines: 2 };
+  if (t.length <= quoteCap(QUOTE_FILL, 3)) {
+    const fs = Math.min(QUOTE_SHORT, Math.floor(QUOTE_W / ((t.length / 3) * QUOTE_GLYPH)));
+    return { fontSize: Math.max(QUOTE_FILL, fs), shown: t, lines: 3 };
+  }
+  const cap = quoteCap(QUOTE_FILL, QUOTE_FILL_LINES);
+  return {
+    fontSize: QUOTE_FILL,
+    shown: t.length <= cap ? t : clipThesis(t, cap),
+    lines: QUOTE_FILL_LINES,
+  };
 }
 
 export function ThesisOg({
@@ -554,7 +591,7 @@ export function ThesisOg({
         <div
           style={{
             display: "flex",
-            fontSize: 32,
+            fontSize: 44,
             fontWeight: 600,
             fontFamily: SANS,
             letterSpacing: "-0.03em",
@@ -578,7 +615,7 @@ export function ThesisOg({
             fontSize: thesis.fontSize,
             fontWeight: 500,
             fontFamily: SANS,
-            lineHeight: 1.22,
+            lineHeight: QUOTE_LH,
             letterSpacing: "-0.02em",
             overflow: "hidden",
             textOverflow: "ellipsis",
