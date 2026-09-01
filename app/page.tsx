@@ -1,34 +1,37 @@
+import { Suspense } from "react";
 import { FeedList } from "@/components/FeedList";
 import { FrontComments } from "@/components/FrontComments";
-import { getCurrentUser } from "@/lib/auth";
-import { seesDead } from "@/lib/admin";
-import { ensureCatalog } from "@/lib/catalog";
-import { getKarma, listFeed, listFrontComments } from "@/lib/db/queries";
+import { ListSkeleton } from "@/components/Skeleton";
+import { cachedFeed, cachedFrontPage } from "@/lib/db/queries";
+import { cachedNow } from "@/lib/clock";
 import { isSort } from "@/lib/types";
-import { nowMs } from "@/lib/time";
+import { getViewerMarks } from "@/lib/viewer";
 
-export const dynamic = "force-dynamic";
+function first(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
 
-export default async function Home({
-  searchParams,
-}: {
-  searchParams: Promise<{ sort?: string; p?: string }>;
-}) {
+// The shell paints at once; the list depends on the URL, so it resolves
+// behind the boundary (or ahead of the click, for prefetched links).
+export default function Home({ searchParams }: PageProps<"/">) {
+  return (
+    <Suspense fallback={<ListSkeleton />}>
+      <HomeBody searchParams={searchParams} />
+    </Suspense>
+  );
+}
+
+async function HomeBody({ searchParams }: Pick<PageProps<"/">, "searchParams">) {
   const params = await searchParams;
-  const sort = params.sort && isSort(params.sort) ? params.sort : null;
-  const page = Math.max(1, Number.parseInt(params.p ?? "1", 10) || 1);
-  await ensureCatalog();
-  const now = nowMs();
+  const sortRaw = first(params.sort);
+  const sort = sortRaw && isSort(sortRaw) ? sortRaw : null;
+  const page = Math.max(1, Number.parseInt(first(params.p) ?? "1", 10) || 1);
 
   if (sort) {
-    const { items, total } = await listFeed(sort, page, now);
+    const { items, total } = await cachedFeed(sort, page);
     return <FeedList items={items} page={page} total={total} sort={sort} />;
   }
 
-  const viewer = await getCurrentUser();
-  const karma = viewer ? await getKarma(viewer.id, now) : 0;
-  const { items, total } = await listFrontComments(viewer?.id ?? null, page, seesDead(viewer), now);
-  return (
-    <FrontComments items={items} page={page} total={total} viewer={viewer} now={now} karma={karma} />
-  );
+  const { items, total } = await cachedFrontPage(page);
+  return <FrontComments items={items} page={page} total={total} now={await cachedNow()} marks={getViewerMarks()} />;
 }

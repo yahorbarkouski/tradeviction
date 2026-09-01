@@ -1,17 +1,20 @@
 import { randomUUID } from "node:crypto";
+import { cacheLife, cacheTag } from "next/cache";
 import { identityFromUrl } from "@/lib/domain";
 import { allRows, getRow, run, withTransaction } from "@/lib/db";
 import { int, intNull, intish, num, numNull, str, strNull } from "@/lib/db/codec";
 import {
   accounted,
+  cachedWorld,
+  cachedWorldData,
   discoveryOf,
-  emptyMarket,
   entryP,
   loadWorld,
   marketOf,
   scoreLots,
   scoreOneLot,
   scoredEntryPulse,
+  worldAt,
   type World,
 } from "@/lib/engine";
 import {
@@ -32,6 +35,7 @@ import {
 import { RECEIPT_ALPHA } from "@/lib/game";
 import { sortFeed } from "@/lib/ranking";
 import { slugify } from "@/lib/slug";
+import { TAG, startupTag } from "@/lib/tags";
 import type {
   BookEvent,
   BookLine,
@@ -244,6 +248,28 @@ export async function getStartupBySlug(slug: string): Promise<Startup | null> {
 export async function getStartupById(id: string): Promise<Startup | null> {
   const row = await getRow(`${STARTUP_SELECT} WHERE s.id = ?`, [id]);
   return row ? parseStartup(row) : null;
+}
+
+// Cached copies for rendering. Actions keep using the uncached lookups above.
+export async function cachedStartupBySlug(slug: string): Promise<Startup | null> {
+  "use cache";
+  cacheTag(TAG.startups);
+  const startup = await getStartupBySlug(slug);
+  if (startup) {
+    cacheTag(startupTag(startup.id));
+    cacheLife("days");
+  } else {
+    // The next submit may create this slug.
+    cacheLife("minutes");
+  }
+  return startup;
+}
+
+export async function cachedStartupById(id: string): Promise<Startup | null> {
+  "use cache";
+  cacheTag(TAG.startups, startupTag(id));
+  cacheLife("days");
+  return getStartupById(id);
 }
 
 export async function getStartupByDomain(domain: string): Promise<Startup | null> {
@@ -478,7 +504,7 @@ async function allStartups(): Promise<Startup[]> {
 }
 
 async function toFeed(startups: Startup[], now: number): Promise<FeedItem[]> {
-  const world = await loadWorld(now);
+  const world = await cachedWorld(now);
   return startups.map((startup) => ({
     ...startup,
     market: marketOf(world, startup.id),
@@ -486,9 +512,7 @@ async function toFeed(startups: Startup[], now: number): Promise<FeedItem[]> {
 }
 
 export async function getMarket(startupId: string, now = Date.now()): Promise<Market> {
-  const startup = await getStartupById(startupId);
-  if (!startup) return emptyMarket();
-  return marketOf(await loadWorld(now), startupId);
+  return marketOf(await cachedWorld(now), startupId);
 }
 
 export async function listFeed(
@@ -499,6 +523,13 @@ export async function listFeed(
   const ranked = sortFeed(await toFeed(await allStartups(), now), sort, now);
   const start = (page - 1) * PAGE_SIZE;
   return { items: ranked.slice(start, start + PAGE_SIZE), total: ranked.length };
+}
+
+export async function cachedFeed(sort: Sort, page: number): Promise<{ items: FeedItem[]; total: number }> {
+  "use cache";
+  cacheLife("hours");
+  cacheTag(TAG.world, TAG.startups);
+  return listFeed(sort, page, Date.now());
 }
 
 // One row per user with the weight a vote from them carries in rankings.
@@ -618,6 +649,15 @@ export async function listFrontComments(
   };
 }
 
+// The front page as everyone sees it: no viewer, dead rows included and marked,
+// so one entry serves every session. Rows overlay the viewer's marks on the client.
+export async function cachedFrontPage(page: number): Promise<{ items: FrontComment[]; total: number }> {
+  "use cache";
+  cacheLife("minutes");
+  cacheTag(TAG.front, TAG.threads);
+  return listFrontComments(null, page, true, Date.now());
+}
+
 export async function getActivePosition(startupId: string, userId: string): Promise<Position | null> {
   const row = await getRow(
     `SELECT p.*, u.username
@@ -636,6 +676,13 @@ export async function listEventsForStartup(startupId: string): Promise<BookEvent
      ORDER BY e.created_at DESC`,
     [startupId],
   )).map(parseEvent);
+}
+
+export async function cachedEvents(startupId: string): Promise<BookEvent[]> {
+  "use cache";
+  cacheLife("hours");
+  cacheTag(startupTag(startupId));
+  return listEventsForStartup(startupId);
 }
 
 async function deployedExcept(userId: string, positionId: string | null): Promise<number> {
@@ -766,8 +813,7 @@ async function addLot(input: {
   );
 }
 
-async function realizeLot(lot: Lot, amount: number, at: number): Promise<void> {
-  const world = await loadWorld(at);
+async function realizeLot(world: World, lot: Lot, amount: number, at: number): Promise<void> {
   const alpha = scoreOneLot(world, lot, amount, at);
   if (amount === lot.conviction) {
     await run("UPDATE lots SET closed_at = ?, realized_alpha = ? WHERE id = ?", [at, alpha, lot.id]);
@@ -795,18 +841,26 @@ async function realizeLot(lot: Lot, amount: number, at: number): Promise<void> {
   );
 }
 
+// One world read per batch. A user's own lots never count toward their own
+// price, so every lot in the batch scores against the state before the batch.
 async function decreaseLots(positionId: string, amount: number, at: number): Promise<void> {
+  const lots = await openLots(positionId);
+  if (lots.length === 0) return;
+  const world = await loadWorld(at);
   let left = amount;
-  for (const lot of await openLots(positionId)) {
+  for (const lot of lots) {
     if (left <= 0) break;
     const take = Math.min(lot.conviction, left);
-    await realizeLot(lot, take, at);
+    await realizeLot(world, lot, take, at);
     left -= take;
   }
 }
 
 async function closeAllLots(positionId: string, at: number): Promise<void> {
-  for (const lot of await openLots(positionId)) await realizeLot(lot, lot.conviction, at);
+  const lots = await openLots(positionId);
+  if (lots.length === 0) return;
+  const world = await loadWorld(at);
+  for (const lot of lots) await realizeLot(world, lot, lot.conviction, at);
 }
 
 export async function applyBookChange(input: {
@@ -1101,6 +1155,15 @@ export async function listThread(
   return roots;
 }
 
+// One thread for everyone, dead comments included and marked, shared across
+// sessions. Viewer marks overlay on the client.
+export async function cachedThread(startupId: string): Promise<ThreadNode[]> {
+  "use cache";
+  cacheLife("minutes");
+  cacheTag(TAG.threads, startupTag(startupId));
+  return listThread(startupId, null, true, Date.now());
+}
+
 export async function insertReply(input: {
   startupId: string;
   userId: string;
@@ -1335,7 +1398,7 @@ export async function listUserBook(userId: string, now = Date.now()): Promise<Bo
     list.push(lot);
     lotsByPosition.set(lot.positionId, list);
   }
-  const world = await loadWorld(now);
+  const world = await cachedWorld(now);
   const lines: BookLine[] = [];
   for (const position of positions) {
     const startup = startups.get(position.startupId);
@@ -1353,11 +1416,15 @@ export async function getBookLine(startupId: string, userId: string, now = Date.
   const lots = (await allRows("SELECT * FROM lots WHERE position_id = ? AND closed_at IS NULL", [position.id])).map(
     parseLot,
   );
-  return await lineFrom(position, startup, lots, await loadWorld(now));
+  return await lineFrom(position, startup, lots, await cachedWorld(now));
 }
 
 export async function listUserReceipts(userId: string): Promise<Receipt[]> {
-  const lots = (await allRows("SELECT * FROM lots WHERE user_id = ? ORDER BY opened_at ASC", [userId])).map(parseLot);
+  const [lotRows, data] = await Promise.all([
+    allRows("SELECT * FROM lots WHERE user_id = ? ORDER BY opened_at ASC", [userId]),
+    cachedWorldData(),
+  ]);
+  const lots = lotRows.map(parseLot);
   const startups = await getStartupsByIds([...new Set(lots.map((lot) => lot.startupId))]);
   const grouped = new Map<string, Lot[]>();
   for (const lot of lots) {
@@ -1374,7 +1441,7 @@ export async function listUserReceipts(userId: string): Promise<Receipt[]> {
     const closed = group.every((lot) => lot.closedAt !== null);
     if (!closed) continue;
     const closedAt = Math.max(...group.map((lot) => lot.closedAt ?? 0));
-    const market = marketOf(await loadWorld(closedAt), first.startupId);
+    const market = marketOf(worldAt(data, closedAt), first.startupId);
     const alpha = group.reduce((sum, lot) => sum + (lot.realizedAlpha ?? 0), 0);
     if (Math.abs(alpha) < RECEIPT_ALPHA) continue;
     const staked = group.reduce((sum, lot) => sum + lot.conviction, 0);
@@ -1460,32 +1527,62 @@ function rankLeaders(
 }
 
 export async function getKarma(userId: string, now = Date.now()): Promise<number> {
-  const world = await loadWorld(now);
-  const received = (await allRows(
-    `SELECT v.user_id AS voter_id, v.created_at
-     FROM comment_votes v
-     JOIN comments c ON c.id = v.comment_id
-     WHERE c.user_id = ?
-     ORDER BY v.created_at ASC`,
-    [userId],
-  )).map((row) => ({ voterId: str(row, "voter_id"), at: int(row, "created_at") }));
-  const given = (await allRows(
-    `SELECT c.user_id AS author_id, v.created_at
-     FROM comment_votes v
-     JOIN comments c ON c.id = v.comment_id
-     WHERE v.user_id = ?`,
-    [userId],
-  )).map((row) => ({ authorId: str(row, "author_id"), at: int(row, "created_at") }));
+  const [world, receivedRows, givenRows] = await Promise.all([
+    cachedWorld(now),
+    allRows(
+      `SELECT v.user_id AS voter_id, v.created_at
+       FROM comment_votes v
+       JOIN comments c ON c.id = v.comment_id
+       WHERE c.user_id = ?
+       ORDER BY v.created_at ASC`,
+      [userId],
+    ),
+    allRows(
+      `SELECT c.user_id AS author_id, v.created_at
+       FROM comment_votes v
+       JOIN comments c ON c.id = v.comment_id
+       WHERE v.user_id = ?`,
+      [userId],
+    ),
+  ]);
+  const received = receivedRows.map((row) => ({ voterId: str(row, "voter_id"), at: int(row, "created_at") }));
+  const given = givenRows.map((row) => ({ authorId: str(row, "author_id"), at: int(row, "created_at") }));
   return scoreKarma(world, userId, received, given);
 }
 
+// Comment ids the user voted for, flagged, and vouched for.
+export async function listViewerMarks(
+  userId: string,
+): Promise<{ voted: string[]; flagged: string[]; vouched: string[] }> {
+  const rows = await allRows(
+    `SELECT 'voted' AS kind, comment_id FROM comment_votes WHERE user_id = ?
+     UNION ALL
+     SELECT 'flagged' AS kind, comment_id FROM comment_flags WHERE user_id = ?
+     UNION ALL
+     SELECT 'vouched' AS kind, comment_id FROM comment_vouches WHERE user_id = ?`,
+    [userId, userId, userId],
+  );
+  const marks = { voted: [] as string[], flagged: [] as string[], vouched: [] as string[] };
+  for (const row of rows) {
+    const kind = str(row, "kind");
+    const id = str(row, "comment_id");
+    if (kind === "voted") marks.voted.push(id);
+    else if (kind === "flagged") marks.flagged.push(id);
+    else if (kind === "vouched") marks.vouched.push(id);
+  }
+  return marks;
+}
+
 export async function getPlayerAlpha(userId: string, now = Date.now(), world?: World): Promise<number> {
-  const resolved = world ?? (await loadWorld(now));
-  return alphaFromLots(resolved, userId, (await allRows("SELECT * FROM lots WHERE user_id = ?", [userId])).map(parseLot));
+  const [resolved, lotRows] = await Promise.all([
+    world ?? cachedWorld(now),
+    allRows("SELECT * FROM lots WHERE user_id = ?", [userId]),
+  ]);
+  return alphaFromLots(resolved, userId, lotRows.map(parseLot));
 }
 
 export async function listLeaders(now = Date.now(), limit = PAGE_SIZE): Promise<Leaderboard> {
-  const world = await loadWorld(now);
+  const world = await cachedWorld(now);
   const users = (await allRows("SELECT id, username FROM users")).map((row) => ({
     id: str(row, "id"),
     username: str(row, "username"),
@@ -1538,15 +1635,22 @@ export async function listLeaders(now = Date.now(), limit = PAGE_SIZE): Promise<
   };
 }
 
+export async function cachedLeaders(): Promise<Leaderboard> {
+  "use cache";
+  cacheLife("hours");
+  cacheTag(TAG.world, TAG.leaders);
+  return listLeaders(Date.now());
+}
+
 export async function getPlayerStats(userId: string, now = Date.now()): Promise<PlayerStats> {
-  const world = await loadWorld(now);
-  return {
-    alpha: await getPlayerAlpha(userId, now, world),
-    karma: await getKarma(userId, now),
-    deployed: await countDeployed(userId),
-    movesLeft: await movesLeft(userId, now),
-    established: accounted(world, userId, now),
-  };
+  const world = await cachedWorld(now);
+  const [alpha, karma, deployed, moves] = await Promise.all([
+    getPlayerAlpha(userId, now, world),
+    getKarma(userId, now),
+    countDeployed(userId),
+    movesLeft(userId, now),
+  ]);
+  return { alpha, karma, deployed, movesLeft: moves, established: accounted(world, userId, now) };
 }
 
 export async function countPlayers(): Promise<number> {
@@ -1557,7 +1661,7 @@ export async function countPlayers(): Promise<number> {
 export async function alphaRank(userId: string, now = Date.now()): Promise<number> {
   const players = (await allRows("SELECT DISTINCT user_id FROM lots")).map((row) => str(row, "user_id"));
   if (players.length === 0) return 50;
-  const world = await loadWorld(now);
+  const world = await cachedWorld(now);
   const scores = await Promise.all(
     players.map(async (id) => ({ id, alpha: await getPlayerAlpha(id, now, world) })),
   );

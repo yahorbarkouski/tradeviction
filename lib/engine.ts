@@ -1,3 +1,4 @@
+import { cacheLife, cacheTag } from "next/cache";
 import { allRows } from "@/lib/db";
 import { int, intNull, intish, str } from "@/lib/db/codec";
 import {
@@ -39,8 +40,8 @@ type UserMeta = {
   firsts: number[];
 };
 
-export type World = {
-  now: number;
+// Everything the scoring engine reads from the database, independent of "now".
+export type WorldData = {
   users: Map<string, UserMeta>;
   origins: Map<string, number>;
   slices: Map<string, Slice[]>;
@@ -48,6 +49,8 @@ export type World = {
   touches: Map<string, Touch[]>;
   comments: Map<string, number>;
 };
+
+export type World = WorldData & { now: number };
 
 type Memo = {
   genesis: Genesis;
@@ -59,9 +62,30 @@ type Memo = {
 
 const memos = new WeakMap<World, Map<string, Memo>>();
 
-export async function loadWorld(now = Date.now()): Promise<World> {
+async function readWorldData(): Promise<WorldData> {
+  const [userRows, firstRows, startupRows, lotRows, positionRows, touchRows, commentRows] =
+    await Promise.all([
+      allRows("SELECT id, created_at, muted, trusted FROM users"),
+      allRows(`
+        SELECT user_id, startup_id, MIN(at) AS first_at FROM (
+          SELECT user_id, startup_id, opened_at AS at FROM positions
+          UNION ALL
+          SELECT user_id, startup_id, created_at AS at FROM comments
+        ) GROUP BY user_id, startup_id
+      `),
+      allRows("SELECT id, created_at FROM startups"),
+      allRows("SELECT startup_id, user_id, direction, opened_at, closed_at FROM lots"),
+      allRows("SELECT startup_id, user_id, direction, conviction, opened_at, closed_at FROM positions"),
+      allRows(`
+        SELECT user_id, startup_id, created_at AS at FROM events
+        UNION ALL
+        SELECT user_id, startup_id, created_at AS at FROM comments
+      `),
+      allRows("SELECT startup_id, COUNT(*) AS n FROM comments GROUP BY startup_id"),
+    ]);
+
   const users = new Map<string, UserMeta>();
-  for (const row of await allRows("SELECT id, created_at, muted, trusted FROM users")) {
+  for (const row of userRows) {
     users.set(str(row, "id"), {
       createdAt: int(row, "created_at"),
       muted: intish(row, "muted") === 1,
@@ -69,14 +93,7 @@ export async function loadWorld(now = Date.now()): Promise<World> {
       firsts: [],
     });
   }
-  const firsts = await allRows(`
-    SELECT user_id, startup_id, MIN(at) AS first_at FROM (
-      SELECT user_id, startup_id, opened_at AS at FROM positions
-      UNION ALL
-      SELECT user_id, startup_id, created_at AS at FROM comments
-    ) GROUP BY user_id, startup_id
-  `);
-  for (const row of firsts) {
+  for (const row of firstRows) {
     const user = users.get(str(row, "user_id"));
     if (!user) continue;
     user.firsts.push(int(row, "first_at"));
@@ -84,12 +101,12 @@ export async function loadWorld(now = Date.now()): Promise<World> {
   for (const user of users.values()) user.firsts.sort((a, b) => a - b);
 
   const origins = new Map<string, number>();
-  for (const row of await allRows("SELECT id, created_at FROM startups")) {
+  for (const row of startupRows) {
     origins.set(str(row, "id"), int(row, "created_at"));
   }
 
   const slices = new Map<string, Slice[]>();
-  for (const row of await allRows("SELECT startup_id, user_id, direction, opened_at, closed_at FROM lots")) {
+  for (const row of lotRows) {
     const direction = str(row, "direction");
     if (!isDirection(direction)) continue;
     const startupId = str(row, "startup_id");
@@ -105,9 +122,7 @@ export async function loadWorld(now = Date.now()): Promise<World> {
   }
 
   const books = new Map<string, WorldSlice[]>();
-  for (const row of await allRows(
-    "SELECT startup_id, user_id, direction, conviction, opened_at, closed_at FROM positions",
-  )) {
+  for (const row of positionRows) {
     const direction = str(row, "direction");
     if (!isDirection(direction)) continue;
     const startupId = str(row, "startup_id");
@@ -125,11 +140,6 @@ export async function loadWorld(now = Date.now()): Promise<World> {
   }
 
   const touches = new Map<string, Touch[]>();
-  const touchRows = await allRows(`
-    SELECT user_id, startup_id, created_at AS at FROM events
-    UNION ALL
-    SELECT user_id, startup_id, created_at AS at FROM comments
-  `);
   for (const row of touchRows) {
     const startupId = str(row, "startup_id");
     const touch: Touch = { userId: str(row, "user_id"), at: int(row, "at") };
@@ -139,13 +149,37 @@ export async function loadWorld(now = Date.now()): Promise<World> {
   }
 
   const comments = new Map<string, number>();
-  for (const row of await allRows("SELECT startup_id, COUNT(*) AS n FROM comments GROUP BY startup_id")) {
+  for (const row of commentRows) {
     comments.set(str(row, "startup_id"), int(row, "n"));
   }
 
-  const world: World = { now, users, origins, slices, books, touches, comments };
+  return { users, origins, slices, books, touches, comments };
+}
+
+// The whole site shares one entry. Every write that touches users, startups,
+// positions, lots, events, or comments calls updateTag("world").
+export async function cachedWorldData(): Promise<WorldData> {
+  "use cache";
+  cacheLife("hours");
+  cacheTag("world");
+  return readWorldData();
+}
+
+export function worldAt(data: WorldData, now: number): World {
+  const world: World = { ...data, now };
   memos.set(world, new Map());
   return world;
+}
+
+// Read path: pages and rankings.
+export async function cachedWorld(now = Date.now()): Promise<World> {
+  return worldAt(await cachedWorldData(), now);
+}
+
+// Write path: inside a transaction the world must reflect rows written
+// earlier in that same transaction, so it is read fresh.
+export async function loadWorld(now = Date.now()): Promise<World> {
+  return worldAt(await readWorldData(), now);
 }
 
 export function accounted(world: World, userId: string, at: number): boolean {

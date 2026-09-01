@@ -1,7 +1,6 @@
 import { HomeOg, ThesisOg, faviconSrc, ogImage } from "@/lib/og";
 import type { Direction, Startup } from "@/lib/types";
 
-export const dynamic = "force-dynamic";
 
 const SAMPLE: Startup = {
   id: "preview",

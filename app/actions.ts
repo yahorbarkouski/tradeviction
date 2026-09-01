@@ -1,8 +1,8 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { updateTag } from "next/cache";
 import { redirect } from "next/navigation";
-import { clearSession, getCurrentUser, hashPassword, setSession, verifyPassword } from "@/lib/auth";
+import { clearSession, hashPassword, readCurrentUser, setSession, verifyPassword } from "@/lib/auth";
 import { isAdmin } from "@/lib/admin";
 import {
   AdminError,
@@ -33,11 +33,28 @@ import { identityFromUrl } from "@/lib/domain";
 import { assertWrite, GuardError, guarded, honeypotFilled, recordWrite } from "@/lib/guard";
 import { FLAG_KARMA, VOUCH_KARMA } from "@/lib/market";
 import { assertClean, assertCleanListing } from "@/lib/moderate";
+import { TAG, startupTag } from "@/lib/tags";
 import { commentPath } from "@/lib/thread";
 import { isDirection, type Startup, type User } from "@/lib/types";
 import { verifyTurnstile } from "@/lib/turnstile";
 
 export type ActionState = { error: string } | null;
+
+// Expires cached reads so the re-render that ships with this action's
+// response already shows the write.
+function expire(...tags: string[]): void {
+  for (const tag of tags) updateTag(tag);
+}
+
+// A comment changed: its thread, the front page, and what the viewer has done.
+function expireComment(startupId: string): void {
+  expire(startupTag(startupId), TAG.front, TAG.session);
+}
+
+// A user's standing changed: every ranking and every thread weighs them anew.
+function expireStanding(): void {
+  expire(TAG.world, TAG.front, TAG.threads, TAG.leaders);
+}
 
 async function requireTurnstile(formData: FormData, action: string): Promise<ActionState> {
   try {
@@ -49,10 +66,13 @@ async function requireTurnstile(formData: FormData, action: string): Promise<Act
   }
 }
 
+function safePath(value: FormDataEntryValue | null): string | null {
+  if (typeof value === "string" && value.startsWith("/") && !value.startsWith("//")) return value;
+  return null;
+}
+
 function nextPath(formData: FormData, fallback: string): string {
-  const next = formData.get("next");
-  if (typeof next === "string" && next.startsWith("/") && !next.startsWith("//")) return next;
-  return fallback;
+  return safePath(formData.get("next")) ?? fallback;
 }
 
 async function rejectDirty(texts: Array<string | null | undefined>): Promise<ActionState> {
@@ -114,6 +134,7 @@ export async function registerAction(_prev: ActionState, formData: FormData): Pr
     return { error: "Could not create the account." };
   }
   await setSession(user.id);
+  expire(TAG.world, TAG.session);
   redirect(nextPath(formData, "/"));
 }
 
@@ -137,34 +158,34 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
     return { error: "Wrong username or password." };
   }
   await setSession(user.id);
+  expire(TAG.session);
   redirect(nextPath(formData, "/"));
 }
 
 export async function logoutAction(): Promise<void> {
   await clearSession();
+  expire(TAG.session);
   redirect("/");
 }
 
 export async function submitStartupAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  const user = await getCurrentUser();
+  const user = await readCurrentUser();
   if (!user) redirect("/login?next=/submit");
   if (honeypotFilled(formData)) redirect("/");
   const name = String(formData.get("name") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
   const ident = identityFromUrl(String(formData.get("url") ?? ""));
   if (!ident) return { error: "Need a real http(s) URL or domain." };
-  const existing = await getStartupByDomain(ident.domain);
-  if (existing) redirect(`/s/${existing.slug}`);
   if (name.length < 2 || name.length > 80) return { error: "Name should be 2–80 characters." };
   if (description.length < 8 || description.length > 200) {
     return { error: "One-liner should be 8–200 characters." };
   }
-  const dirty = await rejectDirtyListing({
-    name,
-    description,
-    domain: ident.domain,
-    url: ident.canonicalUrl,
-  });
+  // The duplicate lookup and the moderation call do not depend on each other.
+  const [existing, dirty] = await Promise.all([
+    getStartupByDomain(ident.domain),
+    rejectDirtyListing({ name, description, domain: ident.domain, url: ident.canonicalUrl }),
+  ]);
+  if (existing) redirect(`/s/${existing.slug}`);
   if (dirty) return dirty;
   let startup: Startup;
   try {
@@ -182,14 +203,13 @@ export async function submitStartupAction(_prev: ActionState, formData: FormData
     if (error instanceof GuardError) return { error: error.message };
     throw error;
   }
-  revalidatePath("/");
+  expire(TAG.startups, TAG.world);
   redirect(`/s/${startup.slug}`);
 }
 
 export async function bookAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  const user = await getCurrentUser();
   const startupId = String(formData.get("startupId") ?? "");
-  const startup = await getStartupById(startupId);
+  const [user, startup] = await Promise.all([readCurrentUser(), getStartupById(startupId)]);
   if (!startup) return { error: "Startup not found." };
   if (!user) redirect(`/login?next=/s/${startup.slug}`);
   if (honeypotFilled(formData)) redirect(`/s/${startup.slug}`);
@@ -220,10 +240,11 @@ export async function bookAction(_prev: ActionState, formData: FormData): Promis
     if (error instanceof BookError || error instanceof GuardError) return { error: error.message };
     return { error: "Could not update the Book." };
   }
-  revalidatePath(`/s/${startup.slug}`);
-  revalidatePath("/");
-  revalidatePath(`/u/${user.username}`);
-  redirect(nextPath(formData, `/s/${startup.slug}`));
+  expire(TAG.world, startupTag(startupId), TAG.front, TAG.leaders, TAG.session);
+  // Without a destination the page re-renders in place with the new position.
+  const next = safePath(formData.get("next"));
+  if (next) redirect(next);
+  return null;
 }
 
 export async function closeAction(formData: FormData): Promise<void> {
@@ -231,9 +252,8 @@ export async function closeAction(formData: FormData): Promise<void> {
 }
 
 export async function replyAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  const user = await getCurrentUser();
   const parentId = String(formData.get("parentId") ?? "");
-  const parent = await getCommentById(parentId);
+  const [user, parent] = await Promise.all([readCurrentUser(), getCommentById(parentId)]);
   if (!parent) return { error: "Comment not found." };
   const startup = await getStartupById(parent.startupId);
   if (!startup) return { error: "Startup not found." };
@@ -256,19 +276,18 @@ export async function replyAction(_prev: ActionState, formData: FormData): Promi
     if (error instanceof GuardError) return { error: error.message };
     throw error;
   }
-  revalidatePath(`/s/${startup.slug}`);
-  revalidatePath(commentPath(startup.slug, parentId));
-  const dest = nextPath(formData, `/s/${startup.slug}`);
-  redirect(dest.includes("/c/") ? dest : `${dest}#${parentId}`);
+  expire(TAG.world);
+  expireComment(startup.id);
+  // The thread re-renders in place; the pending reply is already on screen.
+  return null;
 }
 
 export async function voteAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  const user = await getCurrentUser();
   const commentId = String(formData.get("commentId") ?? "");
-  const comment = await getCommentById(commentId);
+  const [user, comment] = await Promise.all([readCurrentUser(), getCommentById(commentId)]);
   if (!comment) return { error: "Comment not found." };
-  const startup = await getStartupById(comment.startupId);
   if (!user) {
+    const startup = await getStartupById(comment.startupId);
     redirect(`/login?next=${encodeURIComponent(nextPath(formData, startup ? `/s/${startup.slug}` : "/"))}`);
   }
   if (comment.userId === user.id) return { error: "You can't vote for your own comment." };
@@ -279,8 +298,8 @@ export async function voteAction(_prev: ActionState, formData: FormData): Promis
     if (error instanceof GuardError) return { error: error.message };
     throw error;
   }
-  revalidatePath("/");
-  if (startup) revalidatePath(`/s/${startup.slug}`);
+  expireComment(comment.startupId);
+  expire(TAG.leaders);
   return null;
 }
 
@@ -289,13 +308,14 @@ async function moderateComment(
   minKarma: number,
   apply: (commentId: string, userId: string) => Promise<void>,
 ): Promise<void> {
-  const user = await getCurrentUser();
+  const user = await readCurrentUser();
   const commentId = String(formData.get("commentId") ?? "");
   const comment = await getCommentById(commentId, user?.id ?? null);
   if (!comment) return;
-  const startup = await getStartupById(comment.startupId);
-  const dest = nextPath(formData, startup ? `/s/${startup.slug}` : "/");
-  if (!user) redirect(`/login?next=${encodeURIComponent(dest)}`);
+  if (!user) {
+    const startup = await getStartupById(comment.startupId);
+    redirect(`/login?next=${encodeURIComponent(nextPath(formData, startup ? `/s/${startup.slug}` : "/"))}`);
+  }
   if (user.muted) return;
   if ((await getKarma(user.id)) < minKarma) return;
   try {
@@ -303,8 +323,7 @@ async function moderateComment(
   } catch {
     return;
   }
-  revalidatePath("/");
-  if (startup) revalidatePath(`/s/${startup.slug}`);
+  expireComment(comment.startupId);
 }
 
 export async function flagAction(formData: FormData): Promise<void> {
@@ -316,23 +335,17 @@ export async function vouchAction(formData: FormData): Promise<void> {
 }
 
 export async function showDeadAction(formData: FormData): Promise<void> {
-  const user = await getCurrentUser();
+  const user = await readCurrentUser();
   if (!user) redirect("/login");
   await setShowDead(user.id, formData.get("on") === "1");
-  revalidatePath("/");
-  revalidatePath(`/u/${user.username}`);
+  expire(TAG.session);
 }
 
 async function requireAdmin(): Promise<User> {
-  const user = await getCurrentUser();
+  const user = await readCurrentUser();
   if (!user) redirect("/login");
   if (!isAdmin(user)) redirect("/");
   return user;
-}
-
-function touchStartup(slug: string): void {
-  revalidatePath("/");
-  revalidatePath(`/s/${slug}`);
 }
 
 export async function adminUpdateStartupAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -366,7 +379,7 @@ export async function adminUpdateStartupAction(_prev: ActionState, formData: For
     if (error instanceof AdminError) return { error: error.message };
     throw error;
   }
-  touchStartup(startup.slug);
+  expire(TAG.startups, startupTag(startup.id), TAG.front);
   redirect(`/s/${updated.slug}`);
 }
 
@@ -375,7 +388,8 @@ export async function adminDeleteStartupAction(formData: FormData): Promise<void
   const startup = await getStartupById(String(formData.get("startupId") ?? ""));
   if (!startup) redirect("/");
   await deleteStartup(startup.id);
-  touchStartup(startup.slug);
+  expire(TAG.startups, startupTag(startup.id));
+  expireStanding();
   redirect("/");
 }
 
@@ -391,8 +405,7 @@ export async function adminUpdateCommentAction(_prev: ActionState, formData: For
   const dirty = await rejectDirty([text]);
   if (dirty) return dirty;
   await updateComment(commentId, text);
-  touchStartup(startup.slug);
-  revalidatePath(commentPath(startup.slug, commentId));
+  expireComment(startup.id);
   redirect(nextPath(formData, commentPath(startup.slug, commentId)));
 }
 
@@ -403,11 +416,8 @@ export async function adminDeleteCommentAction(formData: FormData): Promise<void
   if (!comment) return;
   const startup = await getStartupById(comment.startupId);
   await deleteCommentTree(commentId);
-  revalidatePath("/");
-  if (startup) {
-    revalidatePath(`/s/${startup.slug}`);
-    revalidatePath(commentPath(startup.slug, commentId));
-  }
+  expireComment(comment.startupId);
+  expire(TAG.world, TAG.leaders);
   const dest = nextPath(formData, startup ? `/s/${startup.slug}` : "/");
   if (startup && dest.includes(`/c/${commentId}`)) redirect(`/s/${startup.slug}`);
   redirect(dest);
@@ -421,8 +431,7 @@ export async function adminMuteAction(formData: FormData): Promise<void> {
     redirect(username ? `/u/${username}` : "/");
   }
   await setMuted(target.id, formData.get("on") === "1");
-  revalidatePath("/");
-  revalidatePath(`/u/${target.username}`);
+  expireStanding();
 }
 
 export async function adminTrustAction(formData: FormData): Promise<void> {
@@ -433,9 +442,7 @@ export async function adminTrustAction(formData: FormData): Promise<void> {
     redirect(username ? `/u/${username}` : "/");
   }
   await setTrusted(target.id, formData.get("on") === "1");
-  revalidatePath("/");
-  revalidatePath("/top");
-  revalidatePath(`/u/${target.username}`);
+  expireStanding();
 }
 
 export async function adminDeleteUserAction(formData: FormData): Promise<void> {
@@ -445,7 +452,6 @@ export async function adminDeleteUserAction(formData: FormData): Promise<void> {
   if (!target) redirect("/");
   if (isAdmin(target)) redirect(`/u/${target.username}`);
   await deleteUser(target.id);
-  revalidatePath("/");
-  revalidatePath(`/u/${target.username}`);
+  expireStanding();
   redirect("/");
 }

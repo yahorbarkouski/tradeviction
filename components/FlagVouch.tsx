@@ -11,7 +11,7 @@ export function FlagVouch({
   vouched,
   karma,
   next,
-  viewer,
+  signedIn,
 }: {
   commentId: string;
   own: boolean;
@@ -20,9 +20,9 @@ export function FlagVouch({
   vouched: boolean;
   karma: number;
   next: string;
-  viewer: { id: string } | null;
+  signedIn: boolean;
 }) {
-  if (!viewer || own) return null;
+  if (!signedIn || own) return null;
   const canFlag = karma >= FLAG_KARMA;
   const canVouch = karma >= VOUCH_KARMA && (dead || vouched);
   if (!canFlag && !canVouch) return null;

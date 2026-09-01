@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = "market-pg-2";
+import { fnv1a } from "@/lib/hash";
 
 export const SCHEMA = `
 CREATE EXTENSION IF NOT EXISTS citext;
@@ -142,3 +142,7 @@ CREATE TABLE IF NOT EXISTS meta (
   value TEXT NOT NULL
 );
 `;
+
+// Fingerprint of the schema text above. Any edit to SCHEMA changes it, and the
+// bootstrap replays the statements once when the stored version differs.
+export const SCHEMA_VERSION = `pg-${fnv1a(SCHEMA)}`;

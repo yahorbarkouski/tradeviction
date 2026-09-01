@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
-import { bookAction } from "@/app/actions";
+import { useActionState, useOptimistic, useState } from "react";
+import { bookAction, type ActionState } from "@/app/actions";
 import { Honeypot } from "@/components/Honeypot";
 import { MetricLabel } from "@/components/Metric";
 import { CONVICTION_CAP, MOVES_PER_DAY } from "@/lib/game";
@@ -10,7 +10,24 @@ import { formatAlpha, stanceTone, stanceWord } from "@/lib/format";
 import { NOTE_MAX } from "@/lib/slug";
 import { cx } from "@/lib/cx";
 import { area, btn, closeBtn, field, kicker, label, metric, qty, stance } from "@/lib/ui";
-import type { BookLine, Direction, Position } from "@/lib/types";
+import { isDirection, type BookLine, type Direction, type Position } from "@/lib/types";
+
+// What the viewer just asked for, shown until the server's re-render lands.
+type PendingChange = {
+  direction: Direction;
+  conviction: number;
+  close: boolean;
+};
+
+function pendingFrom(formData: FormData): PendingChange {
+  const direction = String(formData.get("direction") ?? "");
+  const conviction = Number(formData.get("conviction") ?? 0);
+  return {
+    direction: isDirection(direction) ? direction : "long",
+    conviction: Number.isFinite(conviction) ? conviction : 0,
+    close: formData.get("close") === "1",
+  };
+}
 
 export function PositionForm({
   startupId,
@@ -19,6 +36,7 @@ export function PositionForm({
   movesRemaining,
   username,
   preset = null,
+  next,
 }: {
   startupId: string;
   line: BookLine | null;
@@ -26,6 +44,8 @@ export function PositionForm({
   movesRemaining: number;
   username: string;
   preset?: Direction | null;
+  // Set on the /long and /short entry pages, which land on the startup page after a save.
+  next?: string;
 }) {
   const current = line?.position ?? null;
   const [direction, setDirection] = useState<Direction | null>(preset ?? current?.direction ?? null);
@@ -34,7 +54,11 @@ export function PositionForm({
   );
   const [note, setNote] = useState(current?.note ?? "");
   const conviction = parseConviction(convictionRaw);
-  const [state, action, pending] = useActionState(bookAction, null);
+  const [pendingChange, setPendingChange] = useOptimistic<PendingChange | null>(null);
+  const [state, action, pending] = useActionState(async (prev: ActionState, formData: FormData) => {
+    setPendingChange(pendingFrom(formData));
+    return bookAction(prev, formData);
+  }, null as ActionState);
   const room = CONVICTION_CAP - deployed + (current?.conviction ?? 0);
   const ready = direction !== null && note.trim().length <= NOTE_MAX && conviction <= room;
   const thesisOnly =
@@ -46,9 +70,14 @@ export function PositionForm({
     !thesisOnly && !reducing && (current === null || flipping || conviction > current.conviction);
 
   return (
-    <section className="mb-8" id="position">
+    <section className="mb-8" id="position" aria-busy={pendingChange !== null}>
       {line ? (
-        <HeldPosition line={line} action={action} pending={pending} />
+        <HeldPosition line={line} action={action} pending={pending} pendingChange={pendingChange} />
+      ) : pendingChange ? (
+        <div className={cx(kicker, "opacity-60")}>
+          Opening <span className={stanceTone(pendingChange.direction)}>{stanceWord(pendingChange.direction)}</span>{" "}
+          {pendingChange.conviction}
+        </div>
       ) : (
         <div className={kicker}>Open a position</div>
       )}
@@ -67,6 +96,7 @@ export function PositionForm({
           <Honeypot />
           <input type="hidden" name="startupId" value={startupId} />
           <input type="hidden" name="direction" value={direction ?? ""} />
+          {next ? <input type="hidden" name="next" value={next} /> : null}
           <div className="flex gap-2">
             <StanceButton side="long" on={direction === "long"} onClick={() => setDirection("long")} />
             <StanceButton side="short" on={direction === "short"} onClick={() => setDirection("short")} />
@@ -117,7 +147,7 @@ export function PositionForm({
                 type="submit"
                 disabled={!ready || pending || (spendsMove && movesRemaining <= 0)}
               >
-                {commitLabel(current, direction, conviction)}
+                {pending ? "Saving" : commitLabel(current, direction, conviction)}
               </button>
               <p className="mt-2 text-sm text-mute">
                 {changeHint(
@@ -148,19 +178,25 @@ function HeldPosition({
   line,
   action,
   pending,
+  pendingChange,
 }: {
   line: BookLine;
   action: (formData: FormData) => void | Promise<void>;
   pending: boolean;
+  pendingChange: PendingChange | null;
 }) {
   const { position } = line;
-  const word = stanceWord(position.direction);
-  const tone = stanceTone(position.direction);
-  const active = position.conviction >= 1;
+  const shown =
+    pendingChange && !pendingChange.close
+      ? { ...position, direction: pendingChange.direction, conviction: pendingChange.conviction }
+      : position;
+  const word = stanceWord(shown.direction);
+  const tone = stanceTone(shown.direction);
+  const active = shown.conviction >= 1;
   return (
-    <div>
+    <div className={cx(pendingChange && "opacity-60")}>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <div className={kicker}>Your position</div>
+        <div className={kicker}>{pendingChange?.close ? "Closing your position" : "Your position"}</div>
         <ClosePositionForm
           startupId={position.startupId}
           direction={position.direction}
@@ -174,7 +210,7 @@ function HeldPosition({
           <div className={cx(label, "mb-2")}>side</div>
           <div className={cx(metric, tone)}>{word}</div>
           <div className="mt-1 font-mono text-sm tabular-nums text-mute">
-            {active ? `${position.conviction} · in Pulse` : "inactive · off Pulse"}
+            {active ? `${shown.conviction} · in Pulse` : "inactive · off Pulse"}
           </div>
         </div>
         <div>
@@ -206,9 +242,11 @@ function HeldPosition({
         </div>
       </div>
       <p className="mt-3 text-sm text-mute">
-        {active
-          ? `Close ${word} ${position.conviction}. Locks ${formatAlpha(line.liveAlpha)} Alpha, returns ${position.conviction} Conviction. Drops you from Pulse. Free.`
-          : `Close inactive ${word}. Leaves the Book. Free.`}
+        {pendingChange
+          ? "Saving."
+          : active
+            ? `Close ${word} ${position.conviction}. Locks ${formatAlpha(line.liveAlpha)} Alpha, returns ${position.conviction} Conviction. Drops you from Pulse. Free.`
+            : `Close inactive ${word}. Leaves the Book. Free.`}
       </p>
     </div>
   );

@@ -1,17 +1,23 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
+import { ListSkeleton } from "@/components/Skeleton";
 import { TopBoards } from "@/components/TopBoards";
 import { getCurrentUser } from "@/lib/auth";
-import { listLeaders } from "@/lib/db/queries";
-import { nowMs } from "@/lib/time";
-
-export const dynamic = "force-dynamic";
+import { cachedLeaders } from "@/lib/db/queries";
 
 export const metadata: Metadata = {
   title: "top",
 };
 
-export default async function TopPage() {
-  const now = nowMs();
-  const viewer = await getCurrentUser();
-  return <TopBoards board={await listLeaders(now)} viewerId={viewer?.id ?? null} />;
+export default function TopPage() {
+  return (
+    <Suspense fallback={<ListSkeleton rows={10} />}>
+      <TopBody />
+    </Suspense>
+  );
+}
+
+async function TopBody() {
+  const [board, viewer] = await Promise.all([cachedLeaders(), getCurrentUser()]);
+  return <TopBoards board={board} viewerId={viewer?.id ?? null} />;
 }

@@ -1,58 +1,72 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { createContext, Suspense, useContext, useOptimistic, useState } from "react";
 import { AdminCommentEdit, AdminCommentMeta } from "@/components/AdminComment";
 import { FlagVouch } from "@/components/FlagVouch";
+import { useMarks } from "@/components/Marks";
 import { ReplyForm } from "@/components/ReplyForm";
 import { UserLink } from "@/components/UserLink";
 import { Vote } from "@/components/Vote";
+import { useNow } from "@/components/useNow";
+import { useVote } from "@/components/useVote";
 import { formatAge, stanceTone, stanceWord } from "@/lib/format";
 import { THREAD_PAGE, commentPath } from "@/lib/thread";
 import { cx } from "@/lib/cx";
 import { quiet } from "@/lib/ui";
-import type { Direction, ThreadNode, User } from "@/lib/types";
+import { ownsComment, showsDead, type ViewerMarks } from "@/lib/marks";
+import type { Direction, ThreadNode } from "@/lib/types";
+
+// A reply the viewer just sent, shown under its parent until the server's
+// re-render carries the real one.
+export type PendingReply = {
+  id: string;
+  parentId: string;
+  text: string;
+  username: string;
+  createdAt: number;
+};
+
+const PendingContext = createContext<((reply: PendingReply) => void) | null>(null);
+
+export function useAddPendingReply(): (reply: PendingReply) => void {
+  return useContext(PendingContext) ?? (() => {});
+}
 
 export function ThreadList({
   nodes,
-  viewer,
-  now,
+  now: serverNow,
   href,
   slug,
-  karma,
 }: {
   nodes: ThreadNode[];
-  viewer: User | null;
   now: number;
   href: string;
   slug: string;
-  karma: number;
 }) {
+  const now = useNow(serverNow);
   const [pages, setPages] = useState(1);
+  const [pending, addPending] = useOptimistic<PendingReply[], PendingReply>([], (state, reply) => [
+    ...state,
+    reply,
+  ]);
   const shown = nodes.slice(0, pages * THREAD_PAGE);
   const more = shown.length < nodes.length;
   return (
-    <div>
-      {shown.map((node) => (
-        <CommentNode
-          key={node.id}
-          node={node}
-          viewer={viewer}
-          now={now}
-          href={href}
-          slug={slug}
-          depth={0}
-          karma={karma}
-        />
-      ))}
-      {more ? (
-        <p className="mt-6">
-          <button type="button" className={quiet} onClick={() => setPages((n) => n + 1)}>
-            more
-          </button>
-        </p>
-      ) : null}
-    </div>
+    <PendingContext value={addPending}>
+      <div>
+        {shown.map((node) => (
+          <CommentNode key={node.id} node={node} now={now} href={href} slug={slug} depth={0} pending={pending} />
+        ))}
+        {more ? (
+          <p className="mt-6">
+            <button type="button" className={quiet} onClick={() => setPages((n) => n + 1)}>
+              more
+            </button>
+          </p>
+        ) : null}
+      </div>
+    </PendingContext>
   );
 }
 
@@ -63,24 +77,62 @@ function stanceLabel(pos: { direction: Direction; conviction: number }): string 
 
 function CommentNode({
   node,
-  viewer,
   now,
   href,
   slug,
   depth,
-  karma,
+  pending,
 }: {
   node: ThreadNode;
-  viewer: User | null;
   now: number;
   href: string;
   slug: string;
   depth: number;
-  karma: number;
+  pending: PendingReply[];
+}) {
+  return (
+    <Suspense fallback={node.dead ? null : <Body node={node} now={now} href={href} slug={slug} depth={depth} pending={pending} marks={null} />}>
+      <LiveNode node={node} now={now} href={href} slug={slug} depth={depth} pending={pending} />
+    </Suspense>
+  );
+}
+
+function LiveNode(props: {
+  node: ThreadNode;
+  now: number;
+  href: string;
+  slug: string;
+  depth: number;
+  pending: PendingReply[];
+}) {
+  const marks = useMarks();
+  if (props.node.dead && !showsDead(marks, props.node.userId)) return null;
+  return <Body {...props} marks={marks} />;
+}
+
+function Body({
+  node,
+  now,
+  href,
+  slug,
+  depth,
+  pending,
+  marks,
+}: {
+  node: ThreadNode;
+  now: number;
+  href: string;
+  slug: string;
+  depth: number;
+  pending: PendingReply[];
+  marks: ViewerMarks | null;
 }) {
   const pos = node.position;
   const dest = commentPath(slug, node.id);
+  const own = ownsComment(marks, node.userId);
+  const vote = useVote(marks?.voted.includes(node.id) ?? false, node.points);
   const [editing, setEditing] = useState(false);
+  const mine = pending.filter((reply) => reply.parentId === node.id);
   return (
     <div
       className={cx(
@@ -91,7 +143,16 @@ function CommentNode({
       id={node.id}
     >
       <div className="flex items-center gap-x-1.5 text-sm text-mute">
-        <Vote commentId={node.id} own={node.own} voted={node.voted} viewer={viewer} next={href} />
+        <Vote
+          commentId={node.id}
+          own={own}
+          voted={vote.voted}
+          signedIn={marks !== null}
+          next={href}
+          action={vote.action}
+          pending={vote.pending}
+          error={vote.error}
+        />
         <div className="min-w-0">
           <UserLink username={node.username} createdAt={node.authorCreatedAt} now={now} />
           {" · "}
@@ -105,53 +166,51 @@ function CommentNode({
           {node.dead ? <span> · [dead]</span> : null}
           <FlagVouch
             commentId={node.id}
-            own={node.own}
+            own={own}
             dead={node.dead}
-            flagged={node.flagged}
-            vouched={node.vouched}
-            karma={karma}
+            flagged={marks?.flagged.includes(node.id) ?? false}
+            vouched={marks?.vouched.includes(node.id) ?? false}
+            karma={marks?.karma ?? 0}
             next={dest}
-            viewer={viewer}
+            signedIn={marks !== null}
           />
-          <AdminCommentMeta
-            commentId={node.id}
-            viewer={viewer}
-            next={href}
-            onEdit={() => setEditing(true)}
-          />
+          <AdminCommentMeta commentId={node.id} admin={marks?.admin ?? false} next={href} onEdit={() => setEditing(true)} />
         </div>
       </div>
       {editing ? (
-        <AdminCommentEdit
-          commentId={node.id}
-          text={node.text}
-          next={href}
-          onCancel={() => setEditing(false)}
-        />
+        <AdminCommentEdit commentId={node.id} text={node.text} next={href} onCancel={() => setEditing(false)} />
       ) : (
         <div className="mt-1 text-pretty">{node.text}</div>
       )}
       <div className="mt-1 text-sm text-mute">
-        {node.points} useful
+        {vote.points} useful
         {" · "}
-        {viewer ? (
-          <ReplyForm parentId={node.id} next={href} />
+        {marks ? (
+          <ReplyForm parentId={node.id} username={marks.username} />
         ) : (
           <Link href={`/login?next=${encodeURIComponent(href)}`}>reply</Link>
         )}
       </div>
       {node.kids.map((kid) => (
-        <CommentNode
-          key={kid.id}
-          node={kid}
-          viewer={viewer}
-          now={now}
-          href={href}
-          slug={slug}
-          depth={depth + 1}
-          karma={karma}
-        />
+        <CommentNode key={kid.id} node={kid} now={now} href={href} slug={slug} depth={depth + 1} pending={pending} />
       ))}
+      {mine.map((reply) => (
+        <PendingNode key={reply.id} reply={reply} now={now} />
+      ))}
+    </div>
+  );
+}
+
+function PendingNode({ reply, now }: { reply: PendingReply; now: number }) {
+  return (
+    <div className="mt-3 opacity-60 md:ml-8 max-md:border-l max-md:border-line max-md:pl-3.5" aria-busy="true">
+      <div className="text-sm text-mute">
+        {reply.username}
+        {" · "}
+        {formatAge(reply.createdAt, now)}
+        {" · sending"}
+      </div>
+      <div className="mt-1 text-pretty">{reply.text}</div>
     </div>
   );
 }

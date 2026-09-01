@@ -125,7 +125,7 @@ export function SubmitForm() {
           </div>
           {state?.error ? <p className="text-short">{state.error}</p> : null}
           <button className={`${btn} self-start`} type="submit" disabled={pending}>
-            submit
+            {pending ? "submitting" : "submit"}
           </button>
         </>
       )}

@@ -40,12 +40,31 @@ vi.mock("next/navigation", async () => {
   };
 });
 
-vi.mock("next/cache", () => ({
-  revalidatePath: () => {},
-  revalidateTag: () => {},
-  updateTag: () => {},
-  refresh: () => {},
-}));
+// Outside the Next.js compiler a "use cache" directive is an inert string, so
+// cached readers run their body every call and tests always see fresh rows.
+// The tag helpers are spies: tests assert which tags an action expired.
+vi.mock("next/cache", async () => {
+  const { cacheCalls } = await import("./request");
+  return {
+    revalidatePath: (path: string) => {
+      cacheCalls.revalidatePath.push(path);
+    },
+    revalidateTag: (tag: string) => {
+      cacheCalls.revalidateTag.push(tag);
+    },
+    updateTag: (tag: string) => {
+      cacheCalls.updateTag.push(tag);
+    },
+    refresh: () => {
+      cacheCalls.refresh += 1;
+    },
+    cacheLife: () => {},
+    cacheTag: (...tags: string[]) => {
+      cacheCalls.cacheTag.push(...tags);
+    },
+    io: async () => {},
+  };
+});
 
 beforeEach(async () => {
   vi.useRealTimers();

@@ -1,23 +1,26 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 import { adminDeleteUserAction } from "@/app/actions";
 import { ConfirmDanger } from "@/components/ConfirmDanger";
+import { LineSkeleton } from "@/components/Skeleton";
 import { getCurrentUser } from "@/lib/auth";
 import { isAdmin } from "@/lib/admin";
 import { getUserByUsername } from "@/lib/db/queries";
 
-export const dynamic = "force-dynamic";
-
 export const metadata: Metadata = { title: "delete" };
 
-export default async function DeleteUserPage({
-  params,
-}: {
-  params: Promise<{ username: string }>;
-}) {
-  const viewer = await getCurrentUser();
+export default function DeleteUserPage({ params }: PageProps<"/u/[username]/delete">) {
+  return (
+    <Suspense fallback={<LineSkeleton />}>
+      <DeleteBody params={params} />
+    </Suspense>
+  );
+}
+
+async function DeleteBody({ params }: Pick<PageProps<"/u/[username]/delete">, "params">) {
+  const [viewer, { username }] = await Promise.all([getCurrentUser(), params]);
   if (!isAdmin(viewer)) notFound();
-  const { username } = await params;
   const user = await getUserByUsername(username);
   if (!user || isAdmin(user)) notFound();
   return (

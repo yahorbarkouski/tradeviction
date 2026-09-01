@@ -16,6 +16,8 @@ const TABLES = [
 
 export async function resetDb(): Promise<void> {
   await run(`TRUNCATE ${TABLES.join(", ")} CASCADE`);
+  // The catalog rows are gone, so the marker that says they were seeded goes too.
+  await run("DELETE FROM meta WHERE key = 'catalog'");
 }
 
 type PoolLike = { end: () => Promise<void> };

@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 import { adminMuteAction, adminTrustAction, closeAction, logoutAction, showDeadAction } from "@/app/actions";
 import { ClosePositionForm } from "@/components/PositionForm";
 import { Favicon } from "@/components/Favicon";
 import { MetricLabel } from "@/components/Metric";
+import { ListSkeleton } from "@/components/Skeleton";
 import { getCurrentUser } from "@/lib/auth";
 import { isAdmin } from "@/lib/admin";
 import {
@@ -22,13 +24,7 @@ import { bookAlt, loadProfileBook } from "@/lib/share";
 import { heading, kicker } from "@/lib/ui";
 import { cx } from "@/lib/cx";
 
-export const dynamic = "force-dynamic";
-
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ username: string }>;
-}): Promise<Metadata> {
+export async function generateMetadata({ params }: PageProps<"/u/[username]">): Promise<Metadata> {
   const { username } = await params;
   const loaded = await loadProfileBook(username);
   if (!loaded) return { title: "not found" };
@@ -38,24 +34,29 @@ export async function generateMetadata({
   };
 }
 
-export default async function ProfilePage({
-  params,
-}: {
-  params: Promise<{ username: string }>;
-}) {
-  const { username } = await params;
+export default function ProfilePage({ params }: PageProps<"/u/[username]">) {
+  return (
+    <Suspense fallback={<ListSkeleton rows={6} />}>
+      <ProfileBody params={params} />
+    </Suspense>
+  );
+}
+
+async function ProfileBody({ params }: Pick<PageProps<"/u/[username]">, "params">) {
+  const [{ username }, viewer] = await Promise.all([params, getCurrentUser()]);
   const user = await getUserByUsername(username);
   if (!user) notFound();
   const now = nowMs();
-  const stats = await getPlayerStats(user.id, now);
-  const book = await listUserBook(user.id, now);
-  const receipts = await listUserReceipts(user.id);
+  const [stats, book, receipts, rank, siblings] = await Promise.all([
+    getPlayerStats(user.id, now),
+    listUserBook(user.id, now),
+    listUserReceipts(user.id),
+    alphaRank(user.id, now),
+    isAdmin(viewer) ? listIpSiblings(user.id) : Promise.resolve([] as string[]),
+  ]);
   const longs = book.filter((line) => line.position.direction === "long");
   const shorts = book.filter((line) => line.position.direction === "short");
-  const viewer = await getCurrentUser();
   const own = viewer?.id === user.id;
-  const rank = await alphaRank(user.id, now);
-  const siblings = isAdmin(viewer) ? await listIpSiblings(user.id) : [];
   const eligibleDays = Math.round(ELIGIBLE_AGE_MS / DAY_MS);
 
   return (
@@ -156,9 +157,9 @@ export default async function ProfilePage({
 
       <div className="mt-4">
         <h2 className={cx(kicker, "mt-5 mb-1.5 text-long")}>long</h2>
-        <BookSide lines={longs} own={own} username={user.username} kind="long" />
+        <BookSide lines={longs} own={own} kind="long" />
         <h2 className={cx(kicker, "mt-5 mb-1.5 text-short")}>short</h2>
-        <BookSide lines={shorts} own={own} username={user.username} kind="short" />
+        <BookSide lines={shorts} own={own} kind="short" />
         {receipts.length > 0 ? (
           <>
             <h2 className={cx(kicker, "mt-5 mb-1.5")}>Receipts</h2>
@@ -198,12 +199,10 @@ export default async function ProfilePage({
 function BookSide({
   lines,
   own,
-  username,
   kind,
 }: {
   lines: Awaited<ReturnType<typeof listUserBook>>;
   own: boolean;
-  username: string;
   kind: "long" | "short";
 }) {
   if (lines.length === 0) return <p className="text-mute">none</p>;
@@ -243,7 +242,6 @@ function BookSide({
                   startupId={line.startup.id}
                   direction={line.position.direction}
                   conviction={line.position.conviction}
-                  next={`/u/${username}`}
                   action={closeAction}
                 />
               </div>

@@ -4,7 +4,6 @@ import { loadProfileBook } from "@/lib/share";
 export const alt = "Tradeviction book";
 export const size = OG_SIZE;
 export const contentType = OG_TYPE;
-export const dynamic = "force-dynamic";
 
 export default async function Image({ params }: { params: Promise<{ username: string }> }) {
   const { username } = await params;

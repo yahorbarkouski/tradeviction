@@ -24,7 +24,8 @@ describe("opening a position", () => {
     const startup = await makeStartup();
     const result = await openPosition(user, startup, { direction: "long", conviction: 10, note: "A first thesis." });
     expect(result.state).toBeNull();
-    expect(result.redirect).toBe(`/s/${startup.slug}`);
+    // The page re-renders in place; only a "next" field navigates.
+    expect(result.redirect).toBeNull();
 
     const position = await getActivePosition(startup.id, user.id);
     expect(position?.direction).toBe("long");
