@@ -23,6 +23,7 @@ import { parseNote, parseUsername } from "@/lib/slug";
 import { identityFromUrl } from "@/lib/domain";
 import { assertWrite, GuardError, honeypotFilled, recordWrite } from "@/lib/guard";
 import { FLAG_KARMA, VOUCH_KARMA } from "@/lib/market";
+import { assertClean } from "@/lib/moderate";
 import { commentPath } from "@/lib/thread";
 import { isDirection } from "@/lib/types";
 import { verifyTurnstile } from "@/lib/turnstile";
@@ -33,6 +34,16 @@ function nextPath(formData: FormData, fallback: string): string {
   const next = formData.get("next");
   if (typeof next === "string" && next.startsWith("/") && !next.startsWith("//")) return next;
   return fallback;
+}
+
+async function rejectDirty(texts: Array<string | null | undefined>): Promise<ActionState> {
+  try {
+    await assertClean(texts);
+    return null;
+  } catch (error) {
+    if (error instanceof GuardError) return { error: error.message };
+    throw error;
+  }
 }
 
 export async function registerAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -57,6 +68,8 @@ export async function registerAction(_prev: ActionState, formData: FormData): Pr
     if (error instanceof GuardError) return { error: error.message };
     throw error;
   }
+  const dirty = await rejectDirty([username]);
+  if (dirty) return dirty;
   try {
     const user = await createUser({
       username,
@@ -116,6 +129,8 @@ export async function submitStartupAction(_prev: ActionState, formData: FormData
   if (description.length < 8 || description.length > 200) {
     return { error: "One-liner should be 8–200 characters." };
   }
+  const dirty = await rejectDirty([name, description]);
+  if (dirty) return dirty;
   const startup = await insertStartup({
     name,
     description,
@@ -148,8 +163,12 @@ export async function bookAction(_prev: ActionState, formData: FormData): Promis
   const conviction = Number.parseInt(String(formData.get("conviction") ?? "0"), 10);
   const note = close ? "close" : parseNote(String(formData.get("note") ?? ""));
   if (!close && !isDirection(directionRaw)) return { error: "Pick long or short." };
-  if (!close && !note) return { error: "Thesis must be 20–500 characters." };
+  if (!close && note === null) return { error: "Thesis must be 20–500 characters." };
   if (!Number.isInteger(conviction) || conviction < 0) return { error: "Conviction must be a whole number." };
+  if (!close) {
+    const dirty = await rejectDirty([typeof note === "string" ? note : null]);
+    if (dirty) return dirty;
+  }
   try {
     await applyBookChange({
       startupId,
@@ -192,6 +211,8 @@ export async function replyAction(_prev: ActionState, formData: FormData): Promi
   }
   const text = String(formData.get("text") ?? "").trim();
   if (text.length < 2 || text.length > 2000) return { error: "Reply should be 2–2000 characters." };
+  const dirty = await rejectDirty([text]);
+  if (dirty) return dirty;
   await insertReply({
     startupId: parent.startupId,
     userId: user.id,
