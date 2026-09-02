@@ -37,6 +37,10 @@ export async function migrate(): Promise<void> {
       await run(`ALTER TABLE users ADD COLUMN ${column} ${type}`);
     }
   }
+  // The line a market opens at; null keeps the even start.
+  if (!(await hasColumn("startups", "opening"))) {
+    await run("ALTER TABLE startups ADD COLUMN opening INTEGER");
+  }
   // One X account can vouch for one Tradeviction account. Lives here rather
   // than in SCHEMA because the column must exist before the index can.
   await run("CREATE UNIQUE INDEX IF NOT EXISTS users_x_id ON users(x_id) WHERE x_id IS NOT NULL");

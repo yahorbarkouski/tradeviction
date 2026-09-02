@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import catalog from "@/data/catalog.json";
+import { getRow } from "@/lib/db";
 import { CATALOG_VERSION, ensureCatalog, seedCatalog } from "@/lib/catalog";
 import { countStartups, getMeta } from "@/lib/db/queries";
 import { run } from "./harness/db";
@@ -29,5 +31,17 @@ describe("catalog seeding", () => {
     await ensureCatalog();
     expect(await countStartups()).toBe(seeded);
     expect(await getMeta("catalog")).toBe(CATALOG_VERSION);
+  });
+});
+
+describe("opening lines", () => {
+  it("seeds every catalog company at its opening line", async () => {
+    await seedCatalog();
+    const rows = (catalog as { name: string; opening?: number }[]).filter((row) => row.opening !== undefined);
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      const stored = await getRow("SELECT opening FROM startups WHERE name = ?", [row.name]);
+      expect(stored?.opening, row.name).toBe(row.opening);
+    }
   });
 });

@@ -1,11 +1,13 @@
 import catalog from "@/data/catalog.json";
 import { run } from "@/lib/db";
-import { getMeta, insertStartup, purgeHnStartups, setMeta } from "@/lib/db/queries";
+import { getMeta, insertStartup, purgeHnStartups, setMeta, setOpening } from "@/lib/db/queries";
 import { fnv1a } from "@/lib/hash";
 
 type CatalogRow = {
   name: string;
   url: string;
+  // The line the market opens at.
+  opening?: number;
 };
 
 const rows = catalog as CatalogRow[];
@@ -28,13 +30,14 @@ export async function seedCatalog(): Promise<void> {
   for (let i = 0; i < rows.length; i += 1) {
     const row = rows[i];
     if (!row) continue;
-    await insertStartup({
+    const startup = await insertStartup({
       name: row.name,
       url: row.url,
       source: "manual",
       sourceId: null,
       createdAt: now - i * 3_600_000,
     });
+    await setOpening(startup.id, row.opening ?? null);
   }
   await setMeta(CATALOG_KEY, CATALOG_VERSION);
 }

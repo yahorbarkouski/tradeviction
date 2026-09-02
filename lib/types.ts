@@ -37,6 +37,8 @@ export type Startup = {
   source: Source;
   sourceId: string | null;
   createdAt: number;
+  // The line the market opened at, 0 to 100, or null for an even start.
+  opening: number | null;
 };
 
 export type LookupHit = {
@@ -62,6 +64,7 @@ export type Phase = "forming" | "quiet" | "hot" | "active";
 export type Market = {
   pulse: number;
   p: number;
+  opening: number | null;
   depth: number;
   publicLong: number;
   publicShort: number;

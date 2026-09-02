@@ -83,6 +83,7 @@ function startup(name: string, domain: string): Startup {
     source: "manual",
     sourceId: null,
     createdAt: 0,
+    opening: null,
   };
 }
 

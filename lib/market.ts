@@ -40,10 +40,23 @@ export function clampP(p: number): number {
   return Math.min(PULSE_CEIL, Math.max(PULSE_FLOOR, p));
 }
 
-export function pulseP(publicLong: number, publicShort: number): number {
+// What the pulse starts from before anyone holds a position: a share long and
+// how many votes it is worth. The even start is two phantom votes a side; a
+// opening line is worth OPENING_WEIGHT votes and fades as real ones arrive.
+export type Prior = { p: number; weight: number };
+
+export const EVEN_PRIOR: Prior = { p: 0.5, weight: PRIOR * 2 };
+export const OPENING_WEIGHT = 10;
+
+export function openingPrior(opening: number | null | undefined): Prior {
+  if (opening === null || opening === undefined) return EVEN_PRIOR;
+  return { p: clampP(opening / 100), weight: OPENING_WEIGHT };
+}
+
+export function pulseP(publicLong: number, publicShort: number, prior: Prior = EVEN_PRIOR): number {
   const long = Math.max(0, publicLong);
   const short = Math.max(0, publicShort);
-  return (PRIOR + long) / (PRIOR * 2 + long + short);
+  return (prior.weight * prior.p + long) / (prior.weight + long + short);
 }
 
 export function pulseDisplay(p: number): number {
@@ -140,6 +153,7 @@ export function tallyAt(
   at: number,
   counted: Counted,
   excludeUserId?: string,
+  prior: Prior = EVEN_PRIOR,
 ): { long: number; short: number; n: number; p: number } {
   let long = 0;
   let short = 0;
@@ -154,7 +168,7 @@ export function tallyAt(
     if (slice.direction === "long") long += 1;
     else short += 1;
   }
-  return { long, short, n: long + short, p: pulseP(long, short) };
+  return { long, short, n: long + short, p: pulseP(long, short, prior) };
 }
 
 export function uniqueTimes(slices: Slice[], extra: number[] = []): number[] {
@@ -166,14 +180,14 @@ export function uniqueTimes(slices: Slice[], extra: number[] = []): number[] {
   return [...set].sort((a, b) => a - b);
 }
 
-export function genesisAt(slices: Slice[], counted: Counted, now: number): Genesis {
+export function genesisAt(slices: Slice[], counted: Counted, now: number, prior: Prior = EVEN_PRIOR): Genesis {
   const times = uniqueTimes(slices, [now]);
   let after = 0;
   for (;;) {
     let hit: number | null = null;
     for (const t of times) {
       if (t < after) continue;
-      if (tallyAt(slices, t, counted).n >= GENESIS_N) {
+      if (tallyAt(slices, t, counted, undefined, prior).n >= GENESIS_N) {
         hit = t;
         break;
       }
@@ -181,8 +195,8 @@ export function genesisAt(slices: Slice[], counted: Counted, now: number): Genes
     if (hit === null) return { kind: "forming" };
     const ends = hit + GENESIS_WINDOW_MS;
     if (now < ends) return { kind: "window", startedAt: hit, endsAt: ends };
-    if (tallyAt(slices, ends, counted).n >= GENESIS_N) {
-      return { kind: "open", at: ends, p: tallyAt(slices, ends, counted).p };
+    if (tallyAt(slices, ends, counted, undefined, prior).n >= GENESIS_N) {
+      return { kind: "open", at: ends, p: tallyAt(slices, ends, counted, undefined, prior).p };
     }
     after = ends + 1;
   }
@@ -193,14 +207,15 @@ export function lastOpenP(
   counted: Counted,
   now: number,
   excludeUserId?: string,
+  prior: Prior = EVEN_PRIOR,
 ): { p: number; frozen: boolean } {
-  const current = tallyAt(slices, now, counted, excludeUserId);
+  const current = tallyAt(slices, now, counted, excludeUserId, prior);
   if (current.n >= FREEZE_N) return { p: current.p, frozen: false };
   const times = uniqueTimes(slices, [now]);
   for (let i = times.length - 1; i >= 0; i -= 1) {
     const t = times[i];
     if (t === undefined || t > now) continue;
-    const row = tallyAt(slices, t, counted, excludeUserId);
+    const row = tallyAt(slices, t, counted, excludeUserId, prior);
     if (row.n >= FREEZE_N) return { p: row.p, frozen: true };
   }
   return { p: current.p, frozen: true };
@@ -301,6 +316,7 @@ export function discover(
   origin: number,
   now: number,
   counted: Counted,
+  prior: Prior = EVEN_PRIOR,
 ): Discovery | null {
   const start = utcDayStart(origin);
   const today = utcDayStart(now);
@@ -342,7 +358,7 @@ export function discover(
     quietEnd,
     confirmAt: quietEnd,
     confirmed: now >= quietEnd,
-    pStar: tallyAt(slices, quietEnd, counted).p,
+    pStar: tallyAt(slices, quietEnd, counted, undefined, prior).p,
     windowActors: windowActors(touches, quietEnd - HEAT_MS, quietEnd, counted),
     quietDays: (quietEnd - quietStart) / DAY_MS,
   };

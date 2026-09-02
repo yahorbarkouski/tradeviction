@@ -12,6 +12,7 @@ const SAMPLE: Startup = {
   source: "manual",
   sourceId: null,
   createdAt: 0,
+  opening: null,
 };
 
 const TEXTS: Record<string, string> = {

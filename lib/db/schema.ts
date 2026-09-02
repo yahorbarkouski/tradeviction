@@ -30,7 +30,8 @@ CREATE TABLE IF NOT EXISTS startups (
   domain TEXT NOT NULL DEFAULT '',
   source TEXT NOT NULL CHECK (source IN ('hn', 'manual')),
   source_id TEXT,
-  created_at BIGINT NOT NULL
+  created_at BIGINT NOT NULL,
+  opening INTEGER
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS startups_url ON startups(url);

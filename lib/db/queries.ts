@@ -111,7 +111,16 @@ function parseStartup(row: Record<string, unknown>): Startup {
     source: sourceRaw,
     sourceId: strNull(row, "source_id"),
     createdAt: int(row, "created_at"),
+    opening: intNull(row, "opening"),
   };
+}
+
+// The line a market opens at, or null for an even start.
+export async function setOpening(startupId: string, opening: number | null): Promise<void> {
+  if (opening !== null && (!Number.isInteger(opening) || opening < 0 || opening > 100)) {
+    throw new Error("An opening line is an integer from 0 to 100.");
+  }
+  await run("UPDATE startups SET opening = ? WHERE id = ?", [opening, startupId]);
 }
 
 function parsePosition(row: Record<string, unknown>): Position {
@@ -171,7 +180,7 @@ function parseEvent(row: Record<string, unknown>): BookEvent {
 }
 
 const STARTUP_SELECT = `
-  SELECT s.id, s.slug, s.name, s.url, s.domain, s.source, s.source_id, s.created_at
+  SELECT s.id, s.slug, s.name, s.url, s.domain, s.source, s.source_id, s.created_at, s.opening
   FROM startups s
 `;
 
@@ -369,6 +378,7 @@ export async function insertStartup(input: {
     source: input.source,
     sourceId: input.sourceId,
     createdAt: input.createdAt,
+    opening: null,
   };
 }
 

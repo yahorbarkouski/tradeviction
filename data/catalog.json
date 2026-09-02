@@ -1,146 +1,182 @@
 [
   {
     "name": "OpenAI",
-    "url": "https://openai.com"
+    "url": "https://openai.com",
+    "opening": 70
   },
   {
     "name": "Anthropic",
-    "url": "https://anthropic.com"
+    "url": "https://anthropic.com",
+    "opening": 78
   },
   {
     "name": "Perplexity",
-    "url": "https://perplexity.ai"
+    "url": "https://perplexity.ai",
+    "opening": 40
   },
   {
     "name": "xAI",
-    "url": "https://x.ai"
+    "url": "https://x.ai",
+    "opening": 52
   },
   {
     "name": "Mistral",
-    "url": "https://mistral.ai"
+    "url": "https://mistral.ai",
+    "opening": 46
   },
   {
     "name": "Google DeepMind",
-    "url": "https://deepmind.google"
+    "url": "https://deepmind.google",
+    "opening": 74
   },
   {
     "name": "Cursor",
-    "url": "https://cursor.com"
+    "url": "https://cursor.com",
+    "opening": 72
   },
   {
     "name": "Cognition",
-    "url": "https://cognition.ai"
+    "url": "https://cognition.ai",
+    "opening": 55
   },
   {
     "name": "Thinking Machines",
-    "url": "https://thinkingmachines.ai"
+    "url": "https://thinkingmachines.ai",
+    "opening": 58
   },
   {
     "name": "SSI",
-    "url": "https://ssi.inc"
+    "url": "https://ssi.inc",
+    "opening": 50
   },
   {
     "name": "Character.AI",
-    "url": "https://character.ai"
+    "url": "https://character.ai",
+    "opening": 32
   },
   {
     "name": "Glean",
-    "url": "https://glean.com"
+    "url": "https://glean.com",
+    "opening": 56
   },
   {
     "name": "Harvey",
-    "url": "https://harvey.ai"
+    "url": "https://harvey.ai",
+    "opening": 60
   },
   {
     "name": "Midjourney",
-    "url": "https://midjourney.com"
+    "url": "https://midjourney.com",
+    "opening": 48
   },
   {
     "name": "Runway",
-    "url": "https://runwayml.com"
+    "url": "https://runwayml.com",
+    "opening": 47
   },
   {
     "name": "Suno",
-    "url": "https://suno.com"
+    "url": "https://suno.com",
+    "opening": 52
   },
   {
     "name": "ElevenLabs",
-    "url": "https://elevenlabs.io"
+    "url": "https://elevenlabs.io",
+    "opening": 68
   },
   {
     "name": "Hugging Face",
-    "url": "https://huggingface.co"
+    "url": "https://huggingface.co",
+    "opening": 62
   },
   {
     "name": "Groq",
-    "url": "https://groq.com"
+    "url": "https://groq.com",
+    "opening": 54
   },
   {
     "name": "Together AI",
-    "url": "https://together.ai"
+    "url": "https://together.ai",
+    "opening": 53
   },
   {
     "name": "Scale AI",
-    "url": "https://scale.com"
+    "url": "https://scale.com",
+    "opening": 44
   },
   {
     "name": "Figure",
-    "url": "https://figure.ai"
+    "url": "https://figure.ai",
+    "opening": 50
   },
   {
     "name": "Anduril",
-    "url": "https://anduril.com"
+    "url": "https://anduril.com",
+    "opening": 71
   },
   {
     "name": "SpaceX",
-    "url": "https://spacex.com"
+    "url": "https://spacex.com",
+    "opening": 84
   },
   {
     "name": "Stripe",
-    "url": "https://stripe.com"
+    "url": "https://stripe.com",
+    "opening": 82
   },
   {
     "name": "Linear",
-    "url": "https://linear.app"
+    "url": "https://linear.app",
+    "opening": 70
   },
   {
     "name": "Granola",
-    "url": "https://granola.so"
+    "url": "https://granola.so",
+    "opening": 58
   },
   {
     "name": "Clay",
-    "url": "https://clay.com"
+    "url": "https://clay.com",
+    "opening": 60
   },
   {
     "name": "Figma",
-    "url": "https://figma.com"
+    "url": "https://figma.com",
+    "opening": 66
   },
   {
     "name": "Notion",
-    "url": "https://notion.so"
+    "url": "https://notion.so",
+    "opening": 57
   },
   {
     "name": "Vercel",
-    "url": "https://vercel.com"
+    "url": "https://vercel.com",
+    "opening": 64
   },
   {
     "name": "Databricks",
-    "url": "https://databricks.com"
+    "url": "https://databricks.com",
+    "opening": 73
   },
   {
     "name": "Ramp",
-    "url": "https://ramp.com"
+    "url": "https://ramp.com",
+    "opening": 69
   },
   {
     "name": "Rippling",
-    "url": "https://rippling.com"
+    "url": "https://rippling.com",
+    "opening": 63
   },
   {
     "name": "Neon",
-    "url": "https://neon.tech"
+    "url": "https://neon.tech",
+    "opening": 55
   },
   {
     "name": "Supabase",
-    "url": "https://supabase.com"
+    "url": "https://supabase.com",
+    "opening": 66
   }
 ]

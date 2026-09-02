@@ -20,7 +20,9 @@ import {
   tallyAt,
   windowActors,
   quietStreakDays,
+  openingPrior,
   type Counted,
+  type Prior,
   type Discovery,
   type Genesis,
   type Heat,
@@ -46,6 +48,8 @@ type UserMeta = {
 export type WorldData = {
   users: Map<string, UserMeta>;
   origins: Map<string, number>;
+  // Opening lines by startup id, for the startups that have one.
+  openings: Map<string, number>;
   slices: Map<string, Slice[]>;
   books: Map<string, WorldSlice[]>;
   touches: Map<string, Touch[]>;
@@ -77,7 +81,7 @@ async function readWorldData(): Promise<WorldData> {
           SELECT user_id, startup_id, created_at AS at FROM comments
         ) GROUP BY user_id, startup_id
       `),
-      allRows("SELECT id, created_at FROM startups"),
+      allRows("SELECT id, created_at, opening FROM startups"),
       allRows("SELECT startup_id, user_id, direction, opened_at, closed_at FROM lots"),
       allRows("SELECT startup_id, user_id, direction, conviction, opened_at, closed_at FROM positions"),
       allRows(`
@@ -121,8 +125,11 @@ async function readWorldData(): Promise<WorldData> {
   for (const user of users.values()) user.firsts.sort((a, b) => a - b);
 
   const origins = new Map<string, number>();
+  const openings = new Map<string, number>();
   for (const row of startupRows) {
     origins.set(str(row, "id"), int(row, "created_at"));
+    const opening = intNull(row, "opening");
+    if (opening !== null) openings.set(str(row, "id"), opening);
   }
 
   const slices = new Map<string, Slice[]>();
@@ -179,7 +186,7 @@ async function readWorldData(): Promise<WorldData> {
     else commenters.set(startupId, new Set([userId]));
   }
 
-  return { users, origins, slices, books, touches, comments, commenters };
+  return { users, origins, openings, slices, books, touches, comments, commenters };
 }
 
 // The whole site shares one entry. Every write that touches users, startups,
@@ -231,6 +238,10 @@ function originOf(world: World, startupId: string): number {
   return world.origins.get(startupId) ?? world.now;
 }
 
+function priorOf(world: World, startupId: string): Prior {
+  return openingPrior(world.openings.get(startupId) ?? null);
+}
+
 function memoOf(world: World, startupId: string): Memo {
   const cache = memos.get(world) ?? new Map();
   const hit = cache.get(startupId);
@@ -238,8 +249,9 @@ function memoOf(world: World, startupId: string): Memo {
   const slices = world.slices.get(startupId) ?? [];
   const touches = world.touches.get(startupId) ?? [];
   const who = counted(world);
-  const genesis = genesisAt(slices, who, world.now);
-  const discovery = discover(slices, touches, originOf(world, startupId), world.now, who);
+  const prior = priorOf(world, startupId);
+  const genesis = genesisAt(slices, who, world.now, prior);
+  const discovery = discover(slices, touches, originOf(world, startupId), world.now, who, prior);
   const quietDays = quietStreakDays(touches, originOf(world, startupId), world.now, who);
   const weekActors = windowActors(touches, world.now - ATTENTION_MS, world.now, who);
   // Still in the market: an open position at any conviction, or a comment still up.
@@ -269,8 +281,9 @@ function bookTally(slices: WorldSlice[], at: number) {
 export function marketOf(world: World, startupId: string): Market {
   const slices = world.slices.get(startupId) ?? [];
   const who = counted(world);
-  const publicNow = tallyAt(slices, world.now, who);
-  const week = tallyAt(slices, world.now - SERIES_DAYS * DAY_MS, who);
+  const prior = priorOf(world, startupId);
+  const publicNow = tallyAt(slices, world.now, who, undefined, prior);
+  const week = tallyAt(slices, world.now - SERIES_DAYS * DAY_MS, who, undefined, prior);
   const book = bookTally(world.books.get(startupId) ?? [], world.now);
   const convTotal = book.convLong + book.convShort;
   const memo = memoOf(world, startupId);
@@ -279,13 +292,14 @@ export function marketOf(world: World, startupId: string): Market {
   const series: (number | null)[] = [];
   for (let i = SERIES_DAYS - 1; i >= 0; i -= 1) {
     const at = world.now - i * DAY_MS;
-    const row = tallyAt(slices, at, who);
+    const row = tallyAt(slices, at, who, undefined, prior);
     series.push(row.n === 0 ? null : row.p);
   }
   const pulse = pulseDisplay(publicNow.p);
   return {
     pulse,
     p: publicNow.p,
+    opening: world.openings.get(startupId) ?? null,
     depth: publicNow.n,
     publicLong: publicNow.long,
     publicShort: publicNow.short,
@@ -311,7 +325,7 @@ export function discoveryOf(world: World, startupId: string): Discovery | null {
 }
 
 export function entryP(world: World, startupId: string, userId: string, openedAt: number): number {
-  return tallyAt(world.slices.get(startupId) ?? [], openedAt, counted(world), userId).p;
+  return tallyAt(world.slices.get(startupId) ?? [], openedAt, counted(world), userId, priorOf(world, startupId)).p;
 }
 
 export function scoreLots(world: World, startupId: string, userId: string, lots: Lot[]): {
@@ -323,10 +337,12 @@ export function scoreLots(world: World, startupId: string, userId: string, lots:
   const slices = world.slices.get(startupId) ?? [];
   const who = counted(world);
   const memo = memoOf(world, startupId);
-  const nowP = lastOpenP(slices, who, world.now, userId).p;
-  const genesisP = memo.genesis.kind === "open" ? tallyAt(slices, memo.genesis.at, who, userId).p : pulseP(0, 0);
+  const prior = priorOf(world, startupId);
+  const nowP = lastOpenP(slices, who, world.now, userId, prior).p;
+  const genesisP =
+    memo.genesis.kind === "open" ? tallyAt(slices, memo.genesis.at, who, userId, prior).p : pulseP(0, 0, prior);
   const pStar = memo.discovery
-    ? tallyAt(slices, Math.min(world.now, memo.discovery.confirmAt), who, userId).p
+    ? tallyAt(slices, Math.min(world.now, memo.discovery.confirmAt), who, userId, prior).p
     : 0.5;
   let price = 0;
   let discovery = 0;
@@ -360,17 +376,20 @@ export function scoreLots(world: World, startupId: string, userId: string, lots:
 export function scoreOneLot(world: World, lot: Lot, amount: number, at: number): number {
   const slices = world.slices.get(lot.startupId) ?? [];
   const who = counted(world);
-  const genesis = genesisAt(slices, who, at);
+  const prior = priorOf(world, lot.startupId);
+  const genesis = genesisAt(slices, who, at, prior);
   const discovery = discover(
     slices,
     world.touches.get(lot.startupId) ?? [],
     originOf(world, lot.startupId),
     at,
     who,
+    prior,
   );
-  const nowP = lastOpenP(slices, who, at, lot.userId).p;
-  const genesisP = genesis.kind === "open" ? tallyAt(slices, genesis.at, who, lot.userId).p : pulseP(0, 0);
-  const pStar = discovery ? tallyAt(slices, Math.min(at, discovery.confirmAt), who, lot.userId).p : 0.5;
+  const nowP = lastOpenP(slices, who, at, lot.userId, prior).p;
+  const genesisP =
+    genesis.kind === "open" ? tallyAt(slices, genesis.at, who, lot.userId, prior).p : pulseP(0, 0, prior);
+  const pStar = discovery ? tallyAt(slices, Math.min(at, discovery.confirmAt), who, lot.userId, prior).p : 0.5;
   return scoreLot({
     conviction: amount,
     direction: lot.direction,
@@ -390,6 +409,7 @@ export function emptyMarket(): Market {
   return {
     pulse: pulseDisplay(pulseP(0, 0)),
     p: pulseP(0, 0),
+    opening: null,
     depth: 0,
     publicLong: 0,
     publicShort: 0,
@@ -413,9 +433,10 @@ export function emptyMarket(): Market {
 export function scoredEntryPulse(world: World, lot: Lot): number {
   const slices = world.slices.get(lot.startupId) ?? [];
   const who = counted(world);
-  const genesis = genesisAt(slices, who, world.now);
+  const prior = priorOf(world, lot.startupId);
+  const genesis = genesisAt(slices, who, world.now, prior);
   if (genesis.kind === "open" && lot.openedAt <= genesis.at) {
-    return pulseDisplay(tallyAt(slices, genesis.at, who, lot.userId).p);
+    return pulseDisplay(tallyAt(slices, genesis.at, who, lot.userId, prior).p);
   }
   return lot.entryPulse;
 }

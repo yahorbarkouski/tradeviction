@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { accounted, loadWorld } from "@/lib/engine";
-import { applyBookChange, deleteCommentTree, getMarket, setMuted, setTrusted } from "@/lib/db/queries";
+import { applyBookChange, deleteCommentTree, getMarket, setMuted, setOpening, setTrusted } from "@/lib/db/queries";
 import { ELIGIBLE_AGE_MS, GENESIS_N, GENESIS_WINDOW_MS } from "@/lib/market";
 import { DAY_MS } from "@/lib/time";
 import { clock, endorse, establish, makeStartup, makeUser, plainComment, thesisOf, vote } from "./harness/factories";
@@ -181,5 +181,29 @@ describe("hotness", () => {
     const market = await getMarket(startup.id);
     expect(market.heatActors).toBe(0);
     expect(market.hotness).toBe(0);
+  });
+});
+
+describe("opening line", () => {
+  it("starts a market at its opening line and lets the first positions move it", async () => {
+    clock.freeze();
+    const startup = await makeStartup();
+    expect((await getMarket(startup.id)).pulse).toBe(50);
+
+    await setOpening(startup.id, 80);
+    let market = await getMarket(startup.id);
+    expect(market.opening).toBe(80);
+    expect(market.pulse).toBe(80);
+    expect(market.depth).toBe(0);
+
+    const bear = await makeUser({ trusted: true });
+    await applyBookChange({ startupId: startup.id, userId: bear.id, direction: "short", conviction: 10, note: "" });
+    market = await getMarket(startup.id);
+    // Ten phantom votes at 80 plus one real short: 8 of 11.
+    expect(market.pulse).toBe(73);
+    expect(market.publicShort).toBe(1);
+
+    await setOpening(startup.id, null);
+    expect((await getMarket(startup.id)).pulse).toBe(40);
   });
 });
