@@ -17,8 +17,8 @@ export default function PartiesPage() {
     <div className={page}>
       <h1 className={heading}>Parties</h1>
       <p className="mb-6 text-mute">
-        A private board for your company or your group chat. Make one, share the invite link, and see
-        who is <span className="text-long">long</span> and <span className="text-short">short</span> what.
+        A private board for your company or your group chat. Make one, share the invite link, and see who is{" "}
+        <span className="text-long">long</span> and <span className="text-short">short</span> what.
       </p>
       <Suspense fallback={<ListSkeleton rows={3} />}>
         <PartiesBody />

@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useActionState, useEffect, useId, useRef, useState, type KeyboardEvent, type RefObject } from "react";
-import { rebalanceAction, type ActionState } from "@/app/actions";
+import { rebalanceAction } from "@/app/actions/book";
+import type { ActionState } from "@/app/actions/lib";
 import { Favicon } from "@/components/Favicon";
 import { Honeypot } from "@/components/Honeypot";
 import { LineStats } from "@/components/LineStats";
@@ -10,8 +11,8 @@ import { MetricValue } from "@/components/Metric";
 import { byPhase, changeKind, spendsMove, type BookChange, type HeldNote } from "@/lib/book";
 import { cx } from "@/lib/cx";
 import { stanceTone, stanceWord } from "@/lib/format";
-import { CONVICTION_CAP, MOVES_PER_DAY } from "@/lib/game";
-import { NOTE_MAX } from "@/lib/slug";
+import { CONVICTION_CAP, MOVES_PER_DAY } from "@/lib/market";
+import { NOTE_MAX } from "@/lib/validate";
 import { area, btn, ghost, input, kicker, pipe, tap } from "@/lib/ui";
 import { isLookupHit, type BookLine, type Direction, type EventKind, type StartupPick } from "@/lib/types";
 
@@ -221,8 +222,8 @@ export function BookEditor({
         />
         {rows.length === 0 ? (
           <p className="mt-3 text-sm text-mute">
-            Nothing in your Book yet. Pick a side on a company to open a position. You have {CONVICTION_CAP}{" "}
-            Conviction to spread and {MOVES_PER_DAY} moves a day; cutting and closing are always free.
+            Nothing in your Book yet. Pick a side on a company to open a position. You have {CONVICTION_CAP} Conviction
+            to spread and {MOVES_PER_DAY} moves a day; cutting and closing are always free.
           </p>
         ) : (
           <ul className="m-0 mt-3 list-none p-0">
@@ -261,9 +262,7 @@ export function BookEditor({
 // How the hundred is spread: one segment per active position, in row order.
 function Allocation({ rows, used }: { rows: Row[]; used: number }) {
   const live = rows.filter((row) => !row.closed && parseConviction(row.raw) > 0);
-  const long = live
-    .filter((row) => row.direction === "long")
-    .reduce((sum, row) => sum + parseConviction(row.raw), 0);
+  const long = live.filter((row) => row.direction === "long").reduce((sum, row) => sum + parseConviction(row.raw), 0);
   const short = used - long;
   const free = CONVICTION_CAP - used;
   return (
@@ -314,9 +313,7 @@ function EditorRow({
           <Link href={`/s/${startup.slug}`}>{startup.name}</Link>
           {!line ? <span className="ml-1.5 font-mono text-sm text-mute">NEW</span> : null}
         </div>
-        <div className="text-sm text-mute">
-          {line ? <LineStats line={line} /> : startup.domain}
-        </div>
+        <div className="text-sm text-mute">{line ? <LineStats line={line} /> : startup.domain}</div>
         <Take row={row} onChange={onChange} />
       </div>
       <div className="col-start-2 flex flex-wrap items-center gap-1.5 md:col-start-3">

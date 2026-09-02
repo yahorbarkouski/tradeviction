@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { leavePartyAction, rotateInviteAction } from "@/app/actions";
+import { leavePartyAction, rotateInviteAction } from "@/app/actions/parties";
 import { Confirm } from "@/components/Confirm";
 import { Favicon } from "@/components/Favicon";
 import { MetricHead } from "@/components/Metric";

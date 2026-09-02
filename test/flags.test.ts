@@ -1,11 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { flagAction } from "@/app/actions";
+import { flagAction } from "@/app/actions/comments";
 import { isAdmin, seesDead } from "@/lib/admin";
-import { getCommentById, getKarma } from "@/lib/db/queries";
+import { getCommentById } from "@/lib/db/comments";
+import { getKarma } from "@/lib/db/scores";
 import { FLAG_KARMA, FLAG_KILL, VOUCH_KARMA } from "@/lib/market";
 import type { User } from "@/lib/types";
 import { count, run } from "./harness/db";
-import { actAs, clock, flag, form, makeStartup, makeUser, outcome, plainComment, vote, vouch } from "./harness/factories";
+import {
+  actAs,
+  clock,
+  flag,
+  form,
+  makeStartup,
+  makeUser,
+  outcome,
+  plainComment,
+  vote,
+  vouch,
+} from "./harness/factories";
 
 async function giveKarma(user: User, n: number): Promise<void> {
   const comment = await plainComment(user, await makeStartup(), "karma bait");

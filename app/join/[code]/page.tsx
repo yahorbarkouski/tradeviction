@@ -52,8 +52,8 @@ async function JoinBody({ params }: Pick<PageProps<"/join/[code]">, "params">) {
     <>
       <h1 className={heading}>Join {party.name}?</h1>
       <p className="mb-6 text-mute">
-        {party.members} {party.members === 1 ? "member" : "members"}. Everyone in a party sees each
-        other&apos;s positions, ranked by <MetricLabel id="alpha" />.
+        {party.members} {party.members === 1 ? "member" : "members"}. Everyone in a party sees each other&apos;s
+        positions, ranked by <MetricLabel id="alpha" />.
       </p>
       {viewer ? (
         <JoinPartyForm code={party.inviteCode} />

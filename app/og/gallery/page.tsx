@@ -8,10 +8,13 @@ import { getCurrentUser } from "@/lib/auth";
 import { cx } from "@/lib/cx";
 import { allRows } from "@/lib/db";
 import { str } from "@/lib/db/codec";
-import { listFeed, listFrontComments, listLeaders } from "@/lib/db/queries";
+import { listFrontComments } from "@/lib/db/comments";
+import { listFeed } from "@/lib/db/markets";
+import { listLeaders } from "@/lib/db/scores";
 import { formatAlpha } from "@/lib/format";
 import { GALLERY_CASES, GALLERY_GROUPS, GROUP_LABELS, GROUP_ROUTES, type GalleryGroup } from "@/lib/og-gallery";
 import { bookTitle, marketBlurb, marketTitle, stanceBlurb, stanceTitle, takeTitle } from "@/lib/share";
+import { siteUrl } from "@/lib/site";
 import { commentPath } from "@/lib/thread";
 import { nowMs } from "@/lib/time";
 import { heading, kicker } from "@/lib/ui";
@@ -96,8 +99,8 @@ async function GalleryBody({ searchParams }: Pick<PageProps<"/og/gallery">, "sea
       <h1 className={heading}>OG gallery</h1>
       <p className="m-0 text-sm text-mute text-pretty">
         Every card the site can emit, rendered live through the real generators at 1200×630. Click a card to open the
-        PNG. Not linked from anywhere. The x frame mimics the timeline card: 16px corners, the og:title in a 15px pill at
-        the bottom left, the domain line below.
+        PNG. Not linked from anywhere. The x frame mimics the timeline card: 16px corners, the og:title in a 15px pill
+        at the bottom left, the domain line below.
       </p>
       <Controls view={view} />
       {groups.map((group) => (
@@ -174,7 +177,11 @@ function Row({ name, children }: { name: string; children: React.ReactNode }) {
 
 function Opt({ on, href: to, children }: { on: boolean; href: string; children: React.ReactNode }) {
   return (
-    <Link href={to} prefetch={false} className={cx("inline-flex min-h-8 items-center", on ? "text-ink underline" : "text-mute")}>
+    <Link
+      href={to}
+      prefetch={false}
+      className={cx("inline-flex min-h-8 items-center", on ? "text-ink underline" : "text-mute")}
+    >
       {children}
     </Link>
   );
@@ -263,8 +270,10 @@ function Card({
           ) : null}
         </div>
         {x ? (
-          <span className={cx("mt-1 block font-sans text-[15px] leading-5", dark ? "text-[#71767b]" : "text-[#536471]")}>
-            From tradeviction.com
+          <span
+            className={cx("mt-1 block font-sans text-[15px] leading-5", dark ? "text-[#71767b]" : "text-[#536471]")}
+          >
+            From {siteUrl().host}
           </span>
         ) : null}
       </a>
@@ -297,7 +306,11 @@ async function Live({ view, stamp }: { view: View; stamp: number }) {
   const lead = startups[0];
   const users = leaders.alpha.slice(0, 3);
   const comments = front.items.slice(0, 4);
-  const parties = partyRows.map((row) => ({ slug: str(row, "slug"), name: str(row, "name"), code: str(row, "invite_code") }));
+  const parties = partyRows.map((row) => ({
+    slug: str(row, "slug"),
+    name: str(row, "name"),
+    code: str(row, "invite_code"),
+  }));
   const firstParty = parties[0];
   const empty = startups.length === 0 && users.length === 0 && comments.length === 0 && parties.length === 0;
   return (
@@ -379,7 +392,11 @@ async function Live({ view, stamp }: { view: View; stamp: number }) {
           note={`live thesis · ${c.position ? `${c.position.direction} ${c.startupName}` : `on ${c.startupName}`}`}
           route={commentPath(c.startupSlug, c.id)}
           title={takeTitle(c)}
-          xTitle={c.position ? `${c.username} is ${c.position.direction} ${c.startupName}` : `${c.username} on ${c.startupName}`}
+          xTitle={
+            c.position
+              ? `${c.username} is ${c.position.direction} ${c.startupName}`
+              : `${c.username} on ${c.startupName}`
+          }
           view={view}
           eager={false}
         />

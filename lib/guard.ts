@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 import { isAdmin } from "@/lib/admin";
 import { run, withTransaction } from "@/lib/db";
 import { DAY_MS } from "@/lib/time";
-import { countRate, countRateAll, lastRate, logRate, type RateKind } from "@/lib/db/queries";
+import { countRate, countRateAll, lastRate, logRate, type RateKind } from "@/lib/db/rate";
 import type { User } from "@/lib/types";
 
 type RateActor = User | { username: string };

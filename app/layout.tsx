@@ -3,6 +3,7 @@ import { IBM_Plex_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { SiteHeader } from "@/components/SiteHeader";
 import { HOME_BLURB } from "@/lib/copy";
+import { siteUrl } from "@/lib/site";
 import "./globals.css";
 
 const mono = IBM_Plex_Mono({
@@ -12,13 +13,7 @@ const mono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(
-    process.env.VERCEL_PROJECT_PRODUCTION_URL
-      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-      : process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}`
-        : "http://localhost:3000",
-  ),
+  metadataBase: siteUrl(),
   title: {
     default: "Tradeviction",
     template: "%s | Tradeviction",

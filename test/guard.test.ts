@@ -63,7 +63,12 @@ describe("guarded", () => {
 
   it("attributes the log to whoever actorOf names", async () => {
     const user = await makeUser();
-    await guarded("register", null, async () => user, (created) => created.id);
+    await guarded(
+      "register",
+      null,
+      async () => user,
+      (created) => created.id,
+    );
     expect(await count("rate_log", "kind = 'register' AND user_id = ?", [user.id])).toBe(1);
   });
 });

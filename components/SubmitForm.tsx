@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useActionState, useEffect, useState } from "react";
-import { submitStartupAction } from "@/app/actions";
+import { submitStartupAction } from "@/app/actions/startups";
 import { Favicon } from "@/components/Favicon";
 import { Honeypot } from "@/components/Honeypot";
 import { cx } from "@/lib/cx";
@@ -23,12 +23,7 @@ export function SubmitForm() {
       void fetch(`/api/lookup?q=${encodeURIComponent(q)}`, { signal: ctrl.signal })
         .then((res) => res.json())
         .then((body: unknown) => {
-          if (
-            typeof body === "object" &&
-            body !== null &&
-            "hits" in body &&
-            Array.isArray(body.hits)
-          ) {
+          if (typeof body === "object" && body !== null && "hits" in body && Array.isArray(body.hits)) {
             setResult({ q, hits: body.hits.filter(isLookupHit) });
           }
         })
@@ -96,7 +91,10 @@ export function SubmitForm() {
             <ul className="list-none overflow-hidden border border-line p-0" role="listbox">
               {shown.map((hit) => (
                 <li key={hit.slug} className="border-t border-soft first:border-t-0">
-                  <Link href={`/s/${hit.slug}`} className="flex items-start gap-2 px-3 py-2.5 hover:bg-bg hover:no-underline">
+                  <Link
+                    href={`/s/${hit.slug}`}
+                    className="flex items-start gap-2 px-3 py-2.5 hover:bg-bg hover:no-underline"
+                  >
                     <Favicon domain={hit.domain} name={hit.name} size={20} />
                     <span>
                       <strong>{hit.name}</strong>

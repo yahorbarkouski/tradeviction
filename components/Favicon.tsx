@@ -7,15 +7,7 @@ function isGenericFavicon(img: HTMLImageElement): boolean {
   return img.naturalWidth < 32 || img.naturalHeight < 32;
 }
 
-export function Favicon({
-  domain,
-  name,
-  size = 40,
-}: {
-  domain: string;
-  name: string;
-  size?: number;
-}) {
+export function Favicon({ domain, name, size = 40 }: { domain: string; name: string; size?: number }) {
   const sources = iconSources(domain, 64);
   const [index, setIndex] = useState(0);
   const [ready, setReady] = useState(false);

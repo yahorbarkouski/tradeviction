@@ -1,5 +1,4 @@
-import type { Direction, EventKind, FeedItem, Sort } from "@/lib/types";
-import { HOTNESS_BREAKOUT } from "@/lib/market";
+import type { Direction, EventKind, Phase } from "@/lib/types";
 
 export function stanceWord(direction: Direction): "long" | "short" {
   return direction;
@@ -51,16 +50,11 @@ export function formatAlpha(n: number): string {
   return "0";
 }
 
-export function phaseLabel(phase: FeedItem["market"]["phase"]): string {
+export function phaseLabel(phase: Phase): string {
   if (phase === "forming") return "FORMING";
   if (phase === "quiet") return "QUIET";
   if (phase === "hot") return "HOT";
   return "ESTABLISHED";
-}
-
-export function marketMood(market: FeedItem["market"]): string | null {
-  if (market.hotness >= HOTNESS_BREAKOUT && market.pulse >= 40 && market.pulse <= 60) return "Highly contested";
-  return null;
 }
 
 export function formatMove(delta: number | null): string {
@@ -68,31 +62,8 @@ export function formatMove(delta: number | null): string {
   return delta > 0 ? `+${delta}` : `${delta}`;
 }
 
-export function formatBookShare(longPct: number | null): {
-  label: string;
-  tone: "long" | "short" | null;
-} {
-  if (longPct === null) return { label: "—", tone: null };
-  if (longPct >= 50) return { label: `${longPct}% long`, tone: "long" };
-  return { label: `${100 - longPct}% short`, tone: "short" };
-}
-
 export function formatRank(percentile: number): string {
   const n = Math.min(99, Math.max(0.1, percentile));
   const shown = n < 1 ? n.toFixed(1) : String(Math.round(n));
   return `in top ${shown}%`;
-}
-
-export function sortFeed(items: FeedItem[], sort: Sort, _now: number): FeedItem[] {
-  const copy = [...items];
-  if (sort === "new") {
-    copy.sort((a, b) => b.createdAt - a.createdAt);
-    return copy;
-  }
-  if (sort === "collapses") {
-    copy.sort((a, b) => (a.market.delta ?? 999) - (b.market.delta ?? 999) || b.market.depth - a.market.depth);
-    return copy;
-  }
-  copy.sort((a, b) => b.market.hotness - a.market.hotness || (b.market.delta ?? 0) - (a.market.delta ?? 0));
-  return copy;
 }

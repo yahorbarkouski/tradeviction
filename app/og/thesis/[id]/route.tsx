@@ -1,5 +1,8 @@
 import { HomeOg, ThesisOg, avatarSrc, faviconSrc, ogImage } from "@/lib/og";
-import { getCommentById, getMarket, getStartupById, getUserById } from "@/lib/db/queries";
+import { getCommentById } from "@/lib/db/comments";
+import { getMarket } from "@/lib/db/markets";
+import { getStartupById } from "@/lib/db/startups";
+import { getUserById } from "@/lib/db/users";
 import { thesisPulse } from "@/lib/share";
 import { nowMs } from "@/lib/time";
 import { xAvatarUrl } from "@/lib/x";

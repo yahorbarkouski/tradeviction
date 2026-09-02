@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { deletePartyAction } from "@/app/actions";
+import { deletePartyAction } from "@/app/actions/parties";
 import { ConfirmDanger } from "@/components/ConfirmDanger";
 import { LineSkeleton } from "@/components/Skeleton";
 import { getCurrentUser } from "@/lib/auth";

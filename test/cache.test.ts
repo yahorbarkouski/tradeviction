@@ -1,14 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { logoutAction, showDeadAction } from "@/app/actions";
+import { logoutAction } from "@/app/actions/auth";
+import { showDeadAction } from "@/app/actions/users";
 import { cachedWorldData } from "@/lib/engine";
-import {
-  cachedEvents,
-  cachedFeed,
-  cachedFrontPage,
-  cachedLeaders,
-  cachedStartupBySlug,
-  cachedThread,
-} from "@/lib/db/queries";
+import { cachedEvents } from "@/lib/db/book";
+import { cachedFrontPage, cachedThread } from "@/lib/db/comments";
+import { cachedFeed } from "@/lib/db/markets";
+import { cachedLeaders } from "@/lib/db/scores";
+import { cachedStartupBySlug } from "@/lib/db/startups";
 import { loadThesis } from "@/lib/share";
 import { TAG, startupTag } from "@/lib/tags";
 import { ownsComment, showsDead } from "@/lib/marks";
@@ -111,8 +109,16 @@ describe("viewer marks", () => {
     const other = await plainComment(alice, startup, "another root");
     const bob = await makeUser();
     expect((await vote(bob, id)).state).toBeNull();
-    await run("INSERT INTO comment_flags (comment_id, user_id, created_at) VALUES (?, ?, ?)", [other, bob.id, Date.now()]);
-    await run("INSERT INTO comment_vouches (comment_id, user_id, created_at) VALUES (?, ?, ?)", [other, bob.id, Date.now()]);
+    await run("INSERT INTO comment_flags (comment_id, user_id, created_at) VALUES (?, ?, ?)", [
+      other,
+      bob.id,
+      Date.now(),
+    ]);
+    await run("INSERT INTO comment_vouches (comment_id, user_id, created_at) VALUES (?, ?, ?)", [
+      other,
+      bob.id,
+      Date.now(),
+    ]);
 
     await actAs(bob);
     const marks = await getViewerMarks();
@@ -171,9 +177,7 @@ describe("what a write expires", () => {
     cacheCalls.updateTag = [];
     const result = await openPosition(user, startup, { conviction: 10 });
     expect(result).toEqual({ redirect: null, state: null });
-    expect(expired().sort()).toEqual(
-      [TAG.world, TAG.front, TAG.leaders, TAG.session, startupTag(startup.id)].sort(),
-    );
+    expect(expired().sort()).toEqual([TAG.world, TAG.front, TAG.leaders, TAG.session, startupTag(startup.id)].sort());
   });
 
   it("a reply: the world, this thread, the front page, and the session", async () => {

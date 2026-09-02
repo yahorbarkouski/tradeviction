@@ -3,15 +3,14 @@ import Link from "next/link";
 import { IntentLink } from "@/components/IntentLink";
 import { Favicon } from "@/components/Favicon";
 import { MetricHead, MetricValue } from "@/components/Metric";
-import { CallSpark } from "@/components/StanceSplit";
+import { CallSpark } from "@/components/PulseBoard";
 import { formatDepth, formatMove, phaseLabel } from "@/lib/format";
 import type { FeedItem } from "@/lib/types";
-import { PAGE_SIZE } from "@/lib/db/queries";
+import { PAGE_SIZE } from "@/lib/db/markets";
 import { cx } from "@/lib/cx";
 import { label, num, statLine } from "@/lib/ui";
 
-const desk =
-  "grid grid-cols-[2.5ch_1.25rem_minmax(0,1fr)_2.25rem_2.25rem_2.5rem_7ch] items-start gap-x-1.5";
+const desk = "grid grid-cols-[2.5ch_1.25rem_minmax(0,1fr)_2.25rem_2.25rem_2.5rem_7ch] items-start gap-x-1.5";
 
 const line = "flex h-[1.35em] items-center";
 
@@ -49,12 +48,7 @@ export function FeedList({
             <MetricHead id="hotness" className="justify-center" />
             <MetricHead id="delta" className="justify-center" />
             <span className="inline-flex w-full justify-center" title="7 days">
-              <CalendarRange
-                size={16}
-                strokeWidth={2}
-                aria-hidden
-                className="inline-block h-[1em] w-[1em] shrink-0"
-              />
+              <CalendarRange size={16} strokeWidth={2} aria-hidden className="inline-block h-[1em] w-[1em] shrink-0" />
             </span>
           </div>
         </li>
@@ -76,8 +70,7 @@ export function FeedList({
 function FeedRow({ rank, item }: { rank: number; item: FeedItem }) {
   const { market } = item;
   const delta = market.delta;
-  const moveTone =
-    delta === null || delta === 0 ? "text-ink" : delta > 0 ? "text-long" : "text-short";
+  const moveTone = delta === null || delta === 0 ? "text-ink" : delta > 0 ? "text-long" : "text-short";
   const href = `/s/${item.slug}`;
   return (
     <li className="pt-0.5 pb-1.5">

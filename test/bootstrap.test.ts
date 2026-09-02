@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import catalog from "@/data/catalog.json";
 import { getRow } from "@/lib/db";
 import { CATALOG_VERSION, ensureCatalog, seedCatalog } from "@/lib/catalog";
-import { countStartups, getMeta } from "@/lib/db/queries";
+import { getMeta } from "@/lib/db/meta";
+import { countStartups } from "@/lib/db/startups";
 import { run } from "./harness/db";
 
 describe("catalog seeding", () => {

@@ -7,27 +7,11 @@ import type { Leader, Leaderboard } from "@/lib/types";
 
 const cols = "grid grid-cols-[2.5ch_minmax(0,1fr)_6ch_4ch] gap-x-1.5";
 
-export function TopBoards({
-  board,
-  viewerId,
-}: {
-  board: Leaderboard;
-  viewerId: string | null;
-}) {
+export function TopBoards({ board, viewerId }: { board: Leaderboard; viewerId: string | null }) {
   return (
     <div className={cx(page, "flex flex-col gap-8 md:grid md:grid-cols-2 md:gap-x-10 md:gap-y-0")}>
-      <Board
-        title="Alpha"
-        empty="Nobody has posted a position yet."
-        rows={board.alpha}
-        viewerId={viewerId}
-      />
-      <Board
-        title="Karma"
-        empty="No arguments have been voted for yet."
-        rows={board.karma}
-        viewerId={viewerId}
-      />
+      <Board title="Alpha" empty="Nobody has posted a position yet." rows={board.alpha} viewerId={viewerId} />
+      <Board title="Karma" empty="No arguments have been voted for yet." rows={board.karma} viewerId={viewerId} />
     </div>
   );
 }
@@ -68,9 +52,7 @@ function LeaderRow({ row, own }: { row: Leader; own: boolean }) {
   return (
     <li className="pt-1 pb-1.5">
       <div className={cx(cols, "items-baseline")}>
-        <span className="flex justify-end font-mono text-sm tabular-nums text-mute">
-          {row.rank}.
-        </span>
+        <span className="flex justify-end font-mono text-sm tabular-nums text-mute">{row.rank}.</span>
         <div className="min-w-0 truncate">
           <Link href={`/u/${row.username}`}>{row.username}</Link>
           {own ? <span className="text-mute"> you</span> : null}

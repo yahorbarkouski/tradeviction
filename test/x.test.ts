@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { xStartAction, xUnlinkAction, xVerifyAction } from "@/app/actions";
+import { xStartAction, xUnlinkAction, xVerifyAction } from "@/app/actions/users";
 import { accounted, loadWorld } from "@/lib/engine";
-import { getCommentById, getUserByUsername, getXChallenge, setXChallenge } from "@/lib/db/queries";
+import { getCommentById } from "@/lib/db/comments";
+import { getUserByUsername, getXChallenge, setXChallenge } from "@/lib/db/users";
 import { X_CODE_PREFIX, X_CODE_TTL_MS, bioHasCode, newXCode, parseXHandle } from "@/lib/x";
 import { count, run } from "./harness/db";
 import { actAs, clock, form, makeStartup, makeUser, outcome, plainComment, vote } from "./harness/factories";
@@ -21,7 +22,7 @@ type FakeProfile = {
 
 const CHECKED: FakeProfile = {
   id: "1483833230684037121",
-  userName: "yahorbarkouski",
+  userName: "alice",
   name: "Yahor Barkouski",
   description: "building search engines https://t.co/Est40B7o36",
   isBlueVerified: true,
@@ -64,10 +65,10 @@ afterEach(() => {
 describe("handles and codes", () => {
   it.each([
     ["@Yahor_B", "Yahor_B"],
-    ["https://x.com/yahor", "yahor"],
-    ["https://twitter.com/yahor/status/1", "yahor"],
-    ["yahor?ref=1", "yahor"],
-    ["  yahor  ", "yahor"],
+    ["https://x.com/alice", "alice"],
+    ["https://twitter.com/alice/status/1", "alice"],
+    ["alice?ref=1", "alice"],
+    ["  alice  ", "alice"],
   ])("reads %s as %s", (raw, handle) => {
     expect(parseXHandle(raw)).toBe(handle);
   });
@@ -91,11 +92,11 @@ describe("start", () => {
     const user = await makeUser();
     const handles = stubX(() => envelope(CHECKED));
     await actAs(user);
-    const result = await outcome(xStartAction(null, form({ handle: "@yahorbarkouski" })));
+    const result = await outcome(xStartAction(null, form({ handle: "@alice" })));
     expect(result.state).toBeNull();
-    expect(handles).toEqual(["yahorbarkouski"]);
+    expect(handles).toEqual(["alice"]);
     const challenge = await getXChallenge(user.id);
-    expect(challenge?.handle).toBe("yahorbarkouski");
+    expect(challenge?.handle).toBe("alice");
     expect(challenge?.code).toMatch(/^tv-/);
     expect(challenge?.expiresAt).toBeGreaterThan(Date.now());
     expect(challenge?.expiresAt).toBeLessThanOrEqual(Date.now() + X_CODE_TTL_MS);
@@ -106,7 +107,8 @@ describe("start", () => {
     const user = await makeUser();
     stubX((handle) => {
       if (handle === "plain") return envelope({ ...CHECKED, id: "2", userName: "plain", isBlueVerified: false });
-      if (handle === "legacy") return envelope({ ...CHECKED, id: "4", userName: "legacy", isBlueVerified: false, isVerified: true });
+      if (handle === "legacy")
+        return envelope({ ...CHECKED, id: "4", userName: "legacy", isBlueVerified: false, isVerified: true });
       if (handle === "bot") return envelope({ ...CHECKED, id: "3", userName: "bot", isAutomated: true });
       if (handle === "gone") return envelope({ ...CHECKED, id: "5", userName: "gone", unavailable: true });
       return envelope(null, "error", "user not found");
@@ -117,9 +119,13 @@ describe("start", () => {
     clock.advance(10_000);
     expect((await outcome(xStartAction(null, form({ handle: "bot" })))).state?.error).toMatch(/Automated/);
     clock.advance(10_000);
-    expect((await outcome(xStartAction(null, form({ handle: "ghost" })))).state?.error).toBe("That X account can't be found.");
+    expect((await outcome(xStartAction(null, form({ handle: "ghost" })))).state?.error).toBe(
+      "That X account can't be found.",
+    );
     clock.advance(10_000);
-    expect((await outcome(xStartAction(null, form({ handle: "gone" })))).state?.error).toBe("That X account can't be found.");
+    expect((await outcome(xStartAction(null, form({ handle: "gone" })))).state?.error).toBe(
+      "That X account can't be found.",
+    );
     expect(await getXChallenge(user.id)).toBeNull();
     clock.advance(10_000);
     expect((await outcome(xStartAction(null, form({ handle: "legacy" })))).state).toBeNull();
@@ -134,17 +140,20 @@ describe("start", () => {
     expect(handles).toEqual([]);
     await run("UPDATE users SET x_id = 'already', x_handle = 'someone', x_verified = 1 WHERE id = ?", [user.id]);
     await actAs(user);
-    expect((await outcome(xStartAction(null, form({ handle: "yahorbarkouski" })))).state?.error).toMatch(/Unlink it first/);
+    expect((await outcome(xStartAction(null, form({ handle: "alice" })))).state?.error).toMatch(/Unlink it first/);
     expect(handles).toEqual([]);
   });
 
   it("refuses an X account that another user already linked", async () => {
     const other = await makeUser();
-    await run("UPDATE users SET x_id = ?, x_handle = 'yahorbarkouski', x_verified = 1 WHERE id = ?", [CHECKED.id ?? "", other.id]);
+    await run("UPDATE users SET x_id = ?, x_handle = 'alice', x_verified = 1 WHERE id = ?", [
+      CHECKED.id ?? "",
+      other.id,
+    ]);
     const user = await makeUser();
     stubX(() => envelope(CHECKED));
     await actAs(user);
-    expect((await outcome(xStartAction(null, form({ handle: "yahorbarkouski" })))).state?.error).toMatch(
+    expect((await outcome(xStartAction(null, form({ handle: "alice" })))).state?.error).toMatch(
       /already linked to another/,
     );
     expect(await getXChallenge(user.id)).toBeNull();
@@ -154,19 +163,33 @@ describe("start", () => {
     const user = await makeUser();
     await actAs(user);
     clock.freeze();
-    vi.stubGlobal("fetch", vi.fn(async () => new Response("nope", { status: 500 })));
-    expect((await outcome(xStartAction(null, form({ handle: "yahorbarkouski" })))).state?.error).toBe("Could not reach X. Try again.");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("nope", { status: 500 })),
+    );
+    expect((await outcome(xStartAction(null, form({ handle: "alice" })))).state?.error).toBe(
+      "Could not reach X. Try again.",
+    );
     clock.advance(10_000);
     stubX(() => envelope(null, "error", "rate limit exceeded"));
-    expect((await outcome(xStartAction(null, form({ handle: "yahorbarkouski" })))).state?.error).toBe("Could not reach X. Try again.");
+    expect((await outcome(xStartAction(null, form({ handle: "alice" })))).state?.error).toBe(
+      "Could not reach X. Try again.",
+    );
     clock.advance(10_000);
-    vi.stubGlobal("fetch", vi.fn(async () => {
-      throw new Error("offline");
-    }));
-    expect((await outcome(xStartAction(null, form({ handle: "yahorbarkouski" })))).state?.error).toBe("Could not reach X. Try again.");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new Error("offline");
+      }),
+    );
+    expect((await outcome(xStartAction(null, form({ handle: "alice" })))).state?.error).toBe(
+      "Could not reach X. Try again.",
+    );
     clock.advance(10_000);
     vi.stubEnv("TWITTERIO_API_KEY", "");
-    expect((await outcome(xStartAction(null, form({ handle: "yahorbarkouski" })))).state?.error).toBe("X verification isn't configured.");
+    expect((await outcome(xStartAction(null, form({ handle: "alice" })))).state?.error).toBe(
+      "X verification isn't configured.",
+    );
   });
 
   it("spaces lookups ten seconds apart and caps them at ten an hour", async () => {
@@ -174,14 +197,14 @@ describe("start", () => {
     const user = await makeUser();
     stubX(() => envelope({ ...CHECKED, isBlueVerified: false }));
     await actAs(user);
-    expect((await outcome(xStartAction(null, form({ handle: "yahorbarkouski" })))).state?.error).toMatch(/no checkmark/);
-    expect((await outcome(xStartAction(null, form({ handle: "yahorbarkouski" })))).state?.error).toMatch(/too fast/);
+    expect((await outcome(xStartAction(null, form({ handle: "alice" })))).state?.error).toMatch(/no checkmark/);
+    expect((await outcome(xStartAction(null, form({ handle: "alice" })))).state?.error).toMatch(/too fast/);
     for (let i = 1; i < 10; i += 1) {
       clock.advance(10_000);
-      expect((await outcome(xStartAction(null, form({ handle: "yahorbarkouski" })))).state?.error).toMatch(/no checkmark/);
+      expect((await outcome(xStartAction(null, form({ handle: "alice" })))).state?.error).toMatch(/no checkmark/);
     }
     clock.advance(10_000);
-    expect((await outcome(xStartAction(null, form({ handle: "yahorbarkouski" })))).state?.error).toMatch(
+    expect((await outcome(xStartAction(null, form({ handle: "alice" })))).state?.error).toMatch(
       /Too many verification checks/,
     );
   });
@@ -194,17 +217,17 @@ describe("start", () => {
       const user = await makeUser();
       await actAs(user);
       for (let j = 0; j < 10; j += 1) {
-        expect((await outcome(xStartAction(null, form({ handle: "yahorbarkouski" })))).state?.error).toMatch(/no checkmark/);
+        expect((await outcome(xStartAction(null, form({ handle: "alice" })))).state?.error).toMatch(/no checkmark/);
         clock.advance(10_000);
       }
     }
     const third = await makeUser();
     await actAs(third);
-    expect((await outcome(xStartAction(null, form({ handle: "yahorbarkouski" })))).state?.error).toMatch(
+    expect((await outcome(xStartAction(null, form({ handle: "alice" })))).state?.error).toMatch(
       /Too many verification checks/,
     );
     request.ip = "192.0.2.78";
-    expect((await outcome(xStartAction(null, form({ handle: "yahorbarkouski" })))).state?.error).toMatch(/no checkmark/);
+    expect((await outcome(xStartAction(null, form({ handle: "alice" })))).state?.error).toMatch(/no checkmark/);
   });
 
   it("stops all lookups once the site-wide hourly ceiling is hit", async () => {
@@ -219,15 +242,15 @@ describe("start", () => {
     stubX(() => envelope(CHECKED));
     const user = await makeUser();
     await actAs(user);
-    expect((await outcome(xStartAction(null, form({ handle: "yahorbarkouski" })))).state?.error).toMatch(/busy right now/);
+    expect((await outcome(xStartAction(null, form({ handle: "alice" })))).state?.error).toMatch(/busy right now/);
     expect(await getXChallenge(user.id)).toBeNull();
     clock.advance(3_600_000);
-    expect((await outcome(xStartAction(null, form({ handle: "yahorbarkouski" })))).state).toBeNull();
+    expect((await outcome(xStartAction(null, form({ handle: "alice" })))).state).toBeNull();
   });
 
   it("sends anonymous users to login", async () => {
     await actAs(null);
-    expect((await outcome(xStartAction(null, form({ handle: "yahorbarkouski" })))).redirect).toBe("/login");
+    expect((await outcome(xStartAction(null, form({ handle: "alice" })))).redirect).toBe("/login");
     expect((await outcome(xVerifyAction())).redirect).toBe("/login");
     expect((await outcome(xUnlinkAction())).redirect).toBe("/login");
   });
@@ -239,7 +262,7 @@ describe("verify", () => {
     const user = await makeUser();
     stubX(() => envelope(CHECKED));
     await actAs(user);
-    expect((await outcome(xStartAction(null, form({ handle: "yahorbarkouski" })))).state).toBeNull();
+    expect((await outcome(xStartAction(null, form({ handle: "alice" })))).state).toBeNull();
     const challenge = await getXChallenge(user.id);
     expect(challenge).not.toBeNull();
 
@@ -251,7 +274,7 @@ describe("verify", () => {
     stubX(() => envelope({ ...CHECKED, description: `building things ${challenge?.code.toUpperCase()} and more` }));
     expect((await outcome(xVerifyAction())).state).toBeNull();
     const linked = await getUserByUsername(user.username);
-    expect(linked?.xHandle).toBe("yahorbarkouski");
+    expect(linked?.xHandle).toBe("alice");
     expect(linked?.xVerified).toBe(true);
     expect(linked?.xAvatar).toBe(CHECKED.profilePicture);
     expect(await getXChallenge(user.id)).toBeNull();
@@ -273,11 +296,11 @@ describe("verify", () => {
     expect((await outcome(xVerifyAction())).state?.error).toBe("Request a code first.");
 
     stubX(() => envelope(CHECKED));
-    await outcome(xStartAction(null, form({ handle: "yahorbarkouski" })));
+    await outcome(xStartAction(null, form({ handle: "alice" })));
     clock.advance(X_CODE_TTL_MS + 1);
     expect((await outcome(xVerifyAction())).state?.error).toMatch(/expired/);
 
-    await outcome(xStartAction(null, form({ handle: "yahorbarkouski" })));
+    await outcome(xStartAction(null, form({ handle: "alice" })));
     const challenge = await getXChallenge(user.id);
     clock.advance(10_000);
     stubX(() => envelope({ ...CHECKED, description: challenge?.code ?? "", isBlueVerified: false }));
@@ -290,8 +313,11 @@ describe("verify", () => {
     const first = await makeUser();
     const second = await makeUser();
     const code = newXCode();
-    await run("UPDATE users SET x_id = ?, x_handle = 'yahorbarkouski', x_verified = 1 WHERE id = ?", [CHECKED.id ?? "", first.id]);
-    await setXChallenge(second.id, { handle: "yahorbarkouski", code, expiresAt: Date.now() + X_CODE_TTL_MS });
+    await run("UPDATE users SET x_id = ?, x_handle = 'alice', x_verified = 1 WHERE id = ?", [
+      CHECKED.id ?? "",
+      first.id,
+    ]);
+    await setXChallenge(second.id, { handle: "alice", code, expiresAt: Date.now() + X_CODE_TTL_MS });
     stubX(() => envelope({ ...CHECKED, description: `bio with ${code}` }));
     await actAs(second);
     expect((await outcome(xVerifyAction())).state?.error).toMatch(/already linked to another/);

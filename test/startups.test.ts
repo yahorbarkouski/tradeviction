@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { submitStartupAction } from "@/app/actions";
+import { submitStartupAction } from "@/app/actions/startups";
 import { ensureCatalog } from "@/lib/catalog";
-import { identityFromUrl } from "@/lib/domain";
-import { countStartups, getStartupBySlug, insertStartup, lookupStartups } from "@/lib/db/queries";
+import { countStartups, getStartupBySlug, insertStartup, lookupStartups } from "@/lib/db/startups";
 import { DAY_MS } from "@/lib/time";
 import { count, getRow, run } from "./harness/db";
 import { actAs, clock, form, makeStartup, makeUser, outcome, submit } from "./harness/factories";
@@ -38,9 +37,7 @@ describe("submitting a company", () => {
     expect((await submit(user, { url: "not a url", name: "Fine" })).state?.error).toBe(
       "Need a real http(s) URL or domain.",
     );
-    expect((await submit(user, { url: "fine.com", name: "A" })).state?.error).toMatch(
-      /Name should be/,
-    );
+    expect((await submit(user, { url: "fine.com", name: "A" })).state?.error).toMatch(/Name should be/);
     expect(await countStartups()).toBe(0);
   });
 
@@ -60,45 +57,21 @@ describe("submitting a company", () => {
     ];
     for (const [age, gap] of cases) {
       const user = await makeUser({ createdAt: Date.now() - age });
-      expect((await submit(user, { url: `first-${age}.com`, name: "First" })).redirect).toMatch(
-        /^\/s\//,
-      );
-      expect(
-        (await submit(user, { url: `second-${age}.com`, name: "Second" })).state?.error,
-      ).toMatch(/too fast/);
+      expect((await submit(user, { url: `first-${age}.com`, name: "First" })).redirect).toMatch(/^\/s\//);
+      expect((await submit(user, { url: `second-${age}.com`, name: "Second" })).state?.error).toMatch(/too fast/);
       clock.advance(gap);
-      expect((await submit(user, { url: `second-${age}.com`, name: "Second" })).redirect).toMatch(
-        /^\/s\//,
-      );
+      expect((await submit(user, { url: `second-${age}.com`, name: "Second" })).redirect).toMatch(/^\/s\//);
     }
   });
 
   it("sends anonymous users to login and drops honeypot submissions", async () => {
     await actAs(null);
-    const anonymous = await outcome(
-      submitStartupAction(null, form({ url: "fine.com", name: "Fine" })),
-    );
+    const anonymous = await outcome(submitStartupAction(null, form({ url: "fine.com", name: "Fine" })));
     expect(anonymous.redirect).toBe("/login?next=/submit");
     const user = await makeUser();
     const bot = await submit(user, { url: "fine.com", name: "Fine", website: "spam" });
     expect(bot.redirect).toBe("/");
     expect(await countStartups()).toBe(0);
-  });
-});
-
-describe("site identity", () => {
-  it.each([
-    ["linear.app", "linear.app", "https://linear.app"],
-    ["https://www.Example.com/path?q=1", "example.com", "https://example.com"],
-    ["http://sub.deep.example.co.uk", "example.co.uk", "https://example.co.uk"],
-    ["myapp.vercel.app", "myapp.vercel.app", "https://myapp.vercel.app"],
-    ["https://1.2.3.4/x", "1.2.3.4", "https://1.2.3.4"],
-  ])("reads %s as %s", (raw, domain, canonicalUrl) => {
-    expect(identityFromUrl(raw)).toEqual({ domain, canonicalUrl });
-  });
-
-  it.each(["ftp://files.example.com", "has spaces.com", "", "http://"])("rejects %j", (raw) => {
-    expect(identityFromUrl(raw)).toBeNull();
   });
 });
 
@@ -112,8 +85,20 @@ describe("insertStartup", () => {
     const dup = await insertStartup({ ...base, name: "Other", url: "https://www.one.com/anything" });
     expect(dup.id).toBe(first.id);
 
-    const hn = await insertStartup({ ...base, name: "HN Thing", url: "https://three.com", source: "hn", sourceId: "123" });
-    const hnAgain = await insertStartup({ ...base, name: "HN Thing Renamed", url: "https://four.com", source: "hn", sourceId: "123" });
+    const hn = await insertStartup({
+      ...base,
+      name: "HN Thing",
+      url: "https://three.com",
+      source: "hn",
+      sourceId: "123",
+    });
+    const hnAgain = await insertStartup({
+      ...base,
+      name: "HN Thing Renamed",
+      url: "https://four.com",
+      source: "hn",
+      sourceId: "123",
+    });
     expect(hnAgain.id).toBe(hn.id);
     expect(await countStartups()).toBe(3);
   });

@@ -1,27 +1,17 @@
 import type { FeedItem, Sort } from "@/lib/types";
 
-export { sortFeed } from "@/lib/format";
-
-export function disagreement(item: FeedItem): number {
-  if (item.market.convLongPct === null) return 0;
-  return Math.abs(item.market.pulse - item.market.convLongPct);
-}
-
-export function isHot(item: FeedItem): boolean {
-  return item.market.hotness > 0;
-}
-
-export function isCollapse(item: FeedItem): boolean {
-  if (item.market.forming) return false;
-  return (item.market.delta ?? 0) <= -8 && item.market.depth > 0;
-}
-
-export function isDisagreement(item: FeedItem): boolean {
-  return item.market.depth >= 3 && disagreement(item) >= 18;
-}
-
-export function sortLabel(sort: Sort): string {
-  if (sort === "new") return "new";
-  if (sort === "collapses") return "collapses";
-  return "hot";
+// The order of the company feed. "hot" puts the boards with the most fresh
+// activity first, "collapses" the ones whose Pulse fell hardest this week.
+export function sortFeed(items: FeedItem[], sort: Sort): FeedItem[] {
+  const copy = [...items];
+  if (sort === "new") {
+    copy.sort((a, b) => b.createdAt - a.createdAt);
+    return copy;
+  }
+  if (sort === "collapses") {
+    copy.sort((a, b) => (a.market.delta ?? 999) - (b.market.delta ?? 999) || b.market.depth - a.market.depth);
+    return copy;
+  }
+  copy.sort((a, b) => b.market.hotness - a.market.hotness || (b.market.delta ?? 0) - (a.market.delta ?? 0));
+  return copy;
 }

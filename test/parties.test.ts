@@ -1,13 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
-  adminDeleteUserAction,
   createPartyAction,
   deletePartyAction,
   joinPartyAction,
   leavePartyAction,
   rotateInviteAction,
-} from "@/app/actions";
+} from "@/app/actions/parties";
+import { adminDeleteUserAction } from "@/app/actions/users";
 import {
   cachedPartyBoard,
   cachedPartyBySlug,
@@ -480,7 +480,9 @@ describe("a big party", () => {
       expect(convictions).toEqual([...convictions].sort((a, b) => b - a));
       expect(convictions.filter((n) => n === 10)).toHaveLength(5);
     }
-    expect(ownerRow?.bets.every((bet) => bet.name.startsWith("Company ") && bet.domain.startsWith("company-"))).toBe(true);
+    expect(ownerRow?.bets.every((bet) => bet.name.startsWith("Company ") && bet.domain.startsWith("company-"))).toBe(
+      true,
+    );
 
     // Everyone who bet ranks above the one member who never did.
     expect(rows.filter((row) => row.played)).toHaveLength(9);
@@ -492,7 +494,9 @@ describe("a big party", () => {
     expect(card).toHaveLength(5);
     expect(card.every((row) => row.played)).toBe(true);
     expect(Math.max(...card.map((row) => row.bets.length))).toBeGreaterThan(OG_CHIPS);
-    expect(partyAlt(party.name, 10, rows)).toMatch(/^Everyone at Acme · 10 members · \S+ [+−]?[\d.]+, \S+ [+−]?[\d.]+, \S+ [+−]?[\d.]+$/);
+    expect(partyAlt(party.name, 10, rows)).toMatch(
+      /^Everyone at Acme · 10 members · \S+ [+−]?[\d.]+, \S+ [+−]?[\d.]+, \S+ [+−]?[\d.]+$/,
+    );
   });
 });
 

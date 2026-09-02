@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { logoutAction, registerAction } from "@/app/actions";
+import { logoutAction, registerAction } from "@/app/actions/auth";
 import { getCurrentUser } from "@/lib/auth";
 import { DAY_MS } from "@/lib/time";
 import { count, getRow, run } from "./harness/db";
@@ -34,22 +34,17 @@ describe("register", () => {
     expect((await registerResult({ username: "one", password: PASSWORD, next: "/s/openai" })).redirect).toBe(
       "/s/openai",
     );
-    expect((await registerResult({ username: "two", password: PASSWORD, next: "//evil.example" })).redirect).toBe(
-      "/",
-    );
-    expect((await registerResult({ username: "three", password: PASSWORD, next: "https://evil.example" })).redirect).toBe(
-      "/",
-    );
+    expect((await registerResult({ username: "two", password: PASSWORD, next: "//evil.example" })).redirect).toBe("/");
+    expect(
+      (await registerResult({ username: "three", password: PASSWORD, next: "https://evil.example" })).redirect,
+    ).toBe("/");
   });
 
-  it.each(["1abc", "a", "a".repeat(21), "bad-name", "sp ace", "", "émile"])(
-    "rejects username %j",
-    async (username) => {
-      const result = await registerResult({ username, password: PASSWORD });
-      expect(result.state?.error).toMatch(/Username must/);
-      expect(await count("users")).toBe(0);
-    },
-  );
+  it.each(["1abc", "a", "a".repeat(21), "bad-name", "sp ace", "", "émile"])("rejects username %j", async (username) => {
+    const result = await registerResult({ username, password: PASSWORD });
+    expect(result.state?.error).toMatch(/Username must/);
+    expect(await count("users")).toBe(0);
+  });
 
   it("rejects passwords that are too short or too long", async () => {
     expect((await registerResult({ username: "alice", password: "short7!" })).state?.error).toMatch(/at least 8/);

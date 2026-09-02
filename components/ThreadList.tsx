@@ -47,10 +47,7 @@ export function ThreadList({
 }) {
   const now = useNow(serverNow);
   const [pages, setPages] = useState(1);
-  const [pending, addPending] = useOptimistic<PendingReply[], PendingReply>([], (state, reply) => [
-    ...state,
-    reply,
-  ]);
+  const [pending, addPending] = useOptimistic<PendingReply[], PendingReply>([], (state, reply) => [...state, reply]);
   const shown = nodes.slice(0, pages * THREAD_PAGE);
   const more = shown.length < nodes.length;
   return (
@@ -92,7 +89,13 @@ function CommentNode({
   pending: PendingReply[];
 }) {
   return (
-    <Suspense fallback={node.dead ? null : <Body node={node} now={now} href={href} slug={slug} depth={depth} pending={pending} marks={null} />}>
+    <Suspense
+      fallback={
+        node.dead ? null : (
+          <Body node={node} now={now} href={href} slug={slug} depth={depth} pending={pending} marks={null} />
+        )
+      }
+    >
       <LiveNode node={node} now={now} href={href} slug={slug} depth={depth} pending={pending} />
     </Suspense>
   );
@@ -155,7 +158,12 @@ function Body({
           error={vote.error}
         />
         <div className="min-w-0">
-          <UserLink username={node.username} createdAt={node.authorCreatedAt} now={now} verified={node.authorVerified} />
+          <UserLink
+            username={node.username}
+            createdAt={node.authorCreatedAt}
+            now={now}
+            verified={node.authorVerified}
+          />
           {" · "}
           <Link href={dest}>{formatAge(node.createdAt, now)}</Link>
           {pos ? (

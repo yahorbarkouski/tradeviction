@@ -121,10 +121,7 @@ function CompactVote({ commentId, own, voted, signedIn, next, action, pending, e
         <Arrow on={voted} />
       </button>
       {error ? (
-        <span
-          role="status"
-          className={cx(note, "absolute top-0 left-full z-10 ml-1.5 bg-paper px-1 leading-[1.35em]")}
-        >
+        <span role="status" className={cx(note, "absolute top-0 left-full z-10 ml-1.5 bg-paper px-1 leading-[1.35em]")}>
           {error}
         </span>
       ) : null}

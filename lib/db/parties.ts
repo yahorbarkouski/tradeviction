@@ -2,7 +2,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { cacheLife, cacheTag } from "next/cache";
 import { allRows, getRow, run, withTransaction } from "@/lib/db";
 import { int, intish, str } from "@/lib/db/codec";
-import { scorePlayers } from "@/lib/db/queries";
+import { scorePlayers } from "@/lib/db/scores";
 import { INVITE_ALPHABET, INVITE_LENGTH, PARTY_MAX_MEMBERS } from "@/lib/party";
 import { slugify } from "@/lib/slug";
 import { TAG, partyTag } from "@/lib/tags";
@@ -71,10 +71,7 @@ export async function cachedPartyBySlug(slug: string): Promise<Party | null> {
 }
 
 export async function isPartyMember(partyId: string, userId: string): Promise<boolean> {
-  const row = await getRow("SELECT 1 AS ok FROM party_members WHERE party_id = ? AND user_id = ?", [
-    partyId,
-    userId,
-  ]);
+  const row = await getRow("SELECT 1 AS ok FROM party_members WHERE party_id = ? AND user_id = ?", [partyId, userId]);
   return row !== undefined;
 }
 
@@ -107,10 +104,14 @@ export async function createParty(input: { name: string; ownerId: string }): Pro
     const createdAt = Date.now();
     const slug = await uniquePartySlug(input.name);
     const inviteCode = newInviteCode();
-    await run(
-      "INSERT INTO parties (id, slug, name, owner_id, invite_code, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-      [id, slug, input.name, input.ownerId, inviteCode, createdAt],
-    );
+    await run("INSERT INTO parties (id, slug, name, owner_id, invite_code, created_at) VALUES (?, ?, ?, ?, ?, ?)", [
+      id,
+      slug,
+      input.name,
+      input.ownerId,
+      inviteCode,
+      createdAt,
+    ]);
     await run("INSERT INTO party_members (party_id, user_id, joined_at) VALUES (?, ?, ?)", [
       id,
       input.ownerId,
@@ -146,10 +147,9 @@ export async function leaveParty(partyId: string, userId: string): Promise<void>
     if (!party) return;
     await run("DELETE FROM party_members WHERE party_id = ? AND user_id = ?", [partyId, userId]);
     if (str(party, "owner_id") !== userId) return;
-    const heir = await getRow(
-      "SELECT user_id FROM party_members WHERE party_id = ? ORDER BY joined_at ASC LIMIT 1",
-      [partyId],
-    );
+    const heir = await getRow("SELECT user_id FROM party_members WHERE party_id = ? ORDER BY joined_at ASC LIMIT 1", [
+      partyId,
+    ]);
     if (heir) await run("UPDATE parties SET owner_id = ? WHERE id = ?", [str(heir, "user_id"), partyId]);
     else await run("DELETE FROM parties WHERE id = ?", [partyId]);
   });

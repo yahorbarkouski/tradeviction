@@ -14,8 +14,8 @@ export default function SubmitPage() {
     <div className={page}>
       <h1 className={heading}>Submit</h1>
       <p className="mb-8 text-mute">
-        Companies are keyed by domain, so linear.app and app.linear.app are the same listing. GitHub
-        links collapse to github.com/org/repo. See also <Link href="/about">how this works</Link>.
+        Companies are keyed by domain, so linear.app and app.linear.app are the same listing. GitHub links collapse to
+        github.com/org/repo. See also <Link href="/about">how this works</Link>.
       </p>
       <Suspense fallback={<LineSkeleton />}>
         <SubmitBody />

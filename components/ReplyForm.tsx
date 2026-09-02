@@ -1,7 +1,8 @@
 "use client";
 
 import { startTransition, useActionState, useState } from "react";
-import { replyAction, type ActionState } from "@/app/actions";
+import { replyAction } from "@/app/actions/comments";
+import type { ActionState } from "@/app/actions/lib";
 import { Honeypot } from "@/components/Honeypot";
 import { useAddPendingReply } from "@/components/ThreadList";
 import { area, btn, ghost, quiet } from "@/lib/ui";

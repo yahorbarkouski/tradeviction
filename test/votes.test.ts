@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { voteAction } from "@/app/actions";
-import { getCommentById, setMuted, setTrusted } from "@/lib/db/queries";
+import { voteAction } from "@/app/actions/comments";
+import { getCommentById } from "@/lib/db/comments";
+import { setMuted, setTrusted } from "@/lib/db/users";
 import { PROVISIONAL_WEIGHT } from "@/lib/market";
 import { count } from "./harness/db";
 import {
@@ -191,10 +192,7 @@ describe("vote weight", () => {
 
     await setTrusted(carol.id, true);
     const page = await frontPage();
-    expect(page.texts).toEqual([
-      "T1 older thesis about the first company",
-      "T2 newer thesis about the second company",
-    ]);
+    expect(page.texts).toEqual(["T1 older thesis about the first company", "T2 newer thesis about the second company"]);
     expect(page.items[0]?.score).toBeCloseTo(1);
     expect(page.items[1]?.score).toBeCloseTo(PROVISIONAL_WEIGHT);
     expect(page.items.map((item) => item.points)).toEqual([1, 1]);

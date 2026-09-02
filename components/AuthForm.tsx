@@ -1,11 +1,11 @@
 "use client";
 
 import { useActionState, useRef, useState } from "react";
-import type { ActionState } from "@/app/actions";
-import { loginAction, registerAction } from "@/app/actions";
+import type { ActionState } from "@/app/actions/lib";
+import { loginAction, registerAction } from "@/app/actions/auth";
 import { Honeypot } from "@/components/Honeypot";
 import { Turnstile } from "@/components/Turnstile";
-import { PASSWORD_MAX, PASSWORD_MIN } from "@/lib/slug";
+import { PASSWORD_MAX, PASSWORD_MIN } from "@/lib/validate";
 import { btn, field, input } from "@/lib/ui";
 
 export function AuthForm({
@@ -22,19 +22,16 @@ export function AuthForm({
   const [token, setToken] = useState("");
   const needTurnstile = turnstileSiteKey.length > 0;
   const turnstileAction = mode === "login" ? "login" : "signup";
-  const [state, formAction, pending] = useActionState(
-    async (previous: ActionState, formData: FormData) => {
-      try {
-        return await action(previous, formData);
-      } finally {
-        if (widgetId.current !== null && window.turnstile) {
-          window.turnstile.reset(widgetId.current);
-          setToken("");
-        }
+  const [state, formAction, pending] = useActionState(async (previous: ActionState, formData: FormData) => {
+    try {
+      return await action(previous, formData);
+    } finally {
+      if (widgetId.current !== null && window.turnstile) {
+        window.turnstile.reset(widgetId.current);
+        setToken("");
       }
-    },
-    null as ActionState,
-  );
+    }
+  }, null as ActionState);
   return (
     <form action={formAction}>
       <input type="hidden" name="next" value={next} />
@@ -68,20 +65,11 @@ export function AuthForm({
       {needTurnstile ? (
         <>
           <input type="hidden" name="cf-turnstile-response" value={token} />
-          <Turnstile
-            siteKey={turnstileSiteKey}
-            action={turnstileAction}
-            onToken={setToken}
-            widgetIdRef={widgetId}
-          />
+          <Turnstile siteKey={turnstileSiteKey} action={turnstileAction} onToken={setToken} widgetIdRef={widgetId} />
         </>
       ) : null}
       {state?.error ? <p className="mt-2 text-short">{state.error}</p> : null}
-      <button
-        className={`mt-3.5 ${btn}`}
-        type="submit"
-        disabled={pending || (needTurnstile && !token)}
-      >
+      <button className={`mt-3.5 ${btn}`} type="submit" disabled={pending || (needTurnstile && !token)}>
         {mode === "login" ? "login" : "create account"}
       </button>
     </form>

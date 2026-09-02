@@ -1,6 +1,6 @@
 "use client";
 
-import { flagAction, vouchAction } from "@/app/actions";
+import { flagAction, vouchAction } from "@/app/actions/comments";
 import { FLAG_KARMA, VOUCH_KARMA } from "@/lib/market";
 
 export function FlagVouch({

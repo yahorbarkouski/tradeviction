@@ -49,7 +49,10 @@ describe("verifyTurnstile", () => {
     vi.stubEnv("TURNSTILE_SECRET", "real-secret");
     vi.stubEnv("TURNSTILE_HOSTNAMES", "tradeviction.com");
     let answer: Record<string, unknown> = { success: true, action: "signup", hostname: "tradeviction.com" };
-    vi.stubGlobal("fetch", vi.fn(async () => respond(answer)));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => respond(answer)),
+    );
     const { verifyTurnstile } = await load();
     await expect(verifyTurnstile("token", "signup")).resolves.toBeUndefined();
     answer = { success: true, action: "signup", hostname: "www.tradeviction.com" };
@@ -75,12 +78,18 @@ describe("verifyTurnstile", () => {
   it("treats network trouble as a failed verification", async () => {
     vi.stubEnv("TURNSTILE_SITE_KEY", "1x00000000000000000000AA");
     vi.stubEnv("TURNSTILE_SECRET", "1x0000000000000000000000000000000AA");
-    vi.stubGlobal("fetch", vi.fn(async () => {
-      throw new Error("offline");
-    }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new Error("offline");
+      }),
+    );
     const { verifyTurnstile } = await load();
     await expect(verifyTurnstile("token", "signup")).rejects.toThrow("Verification failed.");
-    vi.stubGlobal("fetch", vi.fn(async () => respond({}, 500)));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => respond({}, 500)),
+    );
     await expect(verifyTurnstile("token", "signup")).rejects.toThrow("Verification failed.");
   });
 });

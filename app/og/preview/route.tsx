@@ -2,7 +2,6 @@ import { HomeOg, ThesisOg, faviconSrc, ogImage } from "@/lib/og";
 import { PartyOg, partyIcons } from "@/lib/og-party";
 import type { Direction, PartyBet, PartyRow, Startup } from "@/lib/types";
 
-
 const SAMPLE: Startup = {
   id: "preview",
   slug: "cursor",
@@ -29,13 +28,35 @@ function bet(name: string, domain: string, direction: Direction, conviction: num
 }
 
 function member(rank: number, username: string, alpha: number, karma: number, bets: PartyBet[]): PartyRow {
-  return { userId: username, username, createdAt: 0, verified: false, alpha, karma, played: alpha !== 0 || bets.length > 0, bets, rank };
+  return {
+    userId: username,
+    username,
+    createdAt: 0,
+    verified: false,
+    alpha,
+    karma,
+    played: alpha !== 0 || bets.length > 0,
+    bets,
+    rank,
+  };
 }
 
 // A full board, so the card can be judged with every slot in use.
 const PARTY_ROWS: PartyRow[] = [
-  member(1, "alice", 12.4, 7, [bet("Cursor", "cursor.com", "long", 30), bet("Linear", "linear.app", "long", 20), bet("Anthropic", "anthropic.com", "short", 15)]),
-  member(2, "bob", 3, 2, [bet("OpenAI", "openai.com", "long", 25), bet("Figma", "figma.com", "short", 10), bet("Glean", "glean.com", "short", 5), bet("Clay", "clay.com", "long", 5), bet("Databricks", "databricks.com", "long", 5), bet("Anduril", "anduril.com", "long", 5), bet("Cognition", "cognition.ai", "short", 5)]),
+  member(1, "alice", 12.4, 7, [
+    bet("Cursor", "cursor.com", "long", 30),
+    bet("Linear", "linear.app", "long", 20),
+    bet("Anthropic", "anthropic.com", "short", 15),
+  ]),
+  member(2, "bob", 3, 2, [
+    bet("OpenAI", "openai.com", "long", 25),
+    bet("Figma", "figma.com", "short", 10),
+    bet("Glean", "glean.com", "short", 5),
+    bet("Clay", "clay.com", "long", 5),
+    bet("Databricks", "databricks.com", "long", 5),
+    bet("Anduril", "anduril.com", "long", 5),
+    bet("Cognition", "cognition.ai", "short", 5),
+  ]),
   member(3, "carol", 0, 0, [bet("ElevenLabs", "elevenlabs.io", "long", 0)]),
   member(4, "dave", -4.5, 1, [bet("Cursor", "cursor.com", "short", 40)]),
   member(5, "erin", 0, 0, []),
@@ -65,14 +86,5 @@ export async function GET(req: Request) {
     url: `https://${domain}`,
   };
   const icon = await faviconSrc(startup.domain);
-  return ogImage(
-    <ThesisOg
-      startup={startup}
-      text={text}
-      username="alice"
-      pulse={70}
-      side={side}
-      icon={icon}
-    />,
-  );
+  return ogImage(<ThesisOg startup={startup} text={text} username="alice" pulse={70} side={side} icon={icon} />);
 }

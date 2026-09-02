@@ -38,24 +38,13 @@ function LiveRow({ rank, item, now }: { rank: number; item: FrontComment; now: n
   return <Row rank={rank} item={item} now={now} marks={marks} />;
 }
 
-function Row({
-  rank,
-  item,
-  now,
-  marks,
-}: {
-  rank: number;
-  item: FrontComment;
-  now: number;
-  marks: ViewerMarks | null;
-}) {
+function Row({ rank, item, now, marks }: { rank: number; item: FrontComment; now: number; marks: ViewerMarks | null }) {
   const href = commentPath(item.startupSlug, item.id);
   const own = ownsComment(marks, item.userId);
   const vote = useVote(marks?.voted.includes(item.id) ?? false, item.points);
   const pos = item.position;
   const points = vote.points === 1 ? "1 point" : `${vote.points} points`;
-  const talk =
-    item.replies === 0 ? "discuss" : item.replies === 1 ? "1 comment" : `${item.replies} comments`;
+  const talk = item.replies === 0 ? "discuss" : item.replies === 1 ? "1 comment" : `${item.replies} comments`;
   const [editing, setEditing] = useState(false);
   return (
     <article
@@ -96,7 +85,12 @@ function Row({
         <div className="text-sm leading-[1.35] text-mute">
           {points}
           {" by "}
-          <UserLink username={item.username} createdAt={item.authorCreatedAt} now={now} verified={item.authorVerified} />
+          <UserLink
+            username={item.username}
+            createdAt={item.authorCreatedAt}
+            now={now}
+            verified={item.authorVerified}
+          />
           {pos ? (
             <>
               {" "}

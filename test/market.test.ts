@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { accounted, loadWorld } from "@/lib/engine";
-import { applyBookChange, deleteCommentTree, getMarket, setMuted, setOpening, setTrusted } from "@/lib/db/queries";
+import { applyBookChange } from "@/lib/db/book";
+import { deleteCommentTree } from "@/lib/db/comments";
+import { getMarket } from "@/lib/db/markets";
+import { setOpening } from "@/lib/db/startups";
+import { setMuted, setTrusted } from "@/lib/db/users";
 import { ELIGIBLE_AGE_MS, GENESIS_N, GENESIS_WINDOW_MS } from "@/lib/market";
 import { DAY_MS } from "@/lib/time";
 import { clock, endorse, establish, makeStartup, makeUser, plainComment, thesisOf, vote } from "./harness/factories";
@@ -173,7 +177,14 @@ describe("hotness", () => {
     });
     expect((await getMarket(startup.id)).heatActors).toBe(1);
 
-    await applyBookChange({ startupId: startup.id, userId: user.id, direction: "long", conviction: 0, note: "", close: true });
+    await applyBookChange({
+      startupId: startup.id,
+      userId: user.id,
+      direction: "long",
+      conviction: 0,
+      note: "",
+      close: true,
+    });
     // The take is still up, so closing alone keeps them in the window.
     expect((await getMarket(startup.id)).heatActors).toBe(1);
 

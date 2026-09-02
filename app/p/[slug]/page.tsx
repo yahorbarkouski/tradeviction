@@ -65,8 +65,8 @@ function Locked({ party, viewer }: { party: Party; viewer: User | null }) {
           "You are not in this party. Ask a member for the invite link."
         ) : (
           <>
-            <Link href={`/login?next=/p/${party.slug}`}>Login</Link> if you are a member, or ask one for
-            the invite link.
+            <Link href={`/login?next=/p/${party.slug}`}>Login</Link> if you are a member, or ask one for the invite
+            link.
           </>
         )}
       </p>
