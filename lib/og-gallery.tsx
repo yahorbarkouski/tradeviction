@@ -54,6 +54,7 @@ const MARKET_ALT = "Tradeviction market";
 const STANCE_ALT = "Tradeviction";
 const BOOK_ALT = "Tradeviction book";
 const PARTY_ALT = "Tradeviction party";
+const INVITE_ALT = "Join a Tradeviction party";
 const HOME_ALT = "Bet your beliefs before they become common knowledge.";
 
 // A stable public avatar for fixtures that have a linked X account.
@@ -260,19 +261,27 @@ function partyCase(input: {
   name: string;
   members: number;
   rows: PartyRow[];
+  invite?: boolean;
 }): GalleryCase {
   const slug = input.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  const invite = input.invite ?? false;
   return {
     id: input.id,
     group: "party",
     label: input.label,
     note: input.note,
-    route: `/p/${slug}`,
-    title: titled(input.name),
+    route: invite ? "/join/[code]" : `/p/${slug}`,
+    title: titled(invite ? `Join ${input.name}` : input.name),
     description: partyAlt(input.name, input.members, input.rows),
-    alt: PARTY_ALT,
+    alt: invite ? INVITE_ALT : PARTY_ALT,
     render: async () => (
-      <PartyOg name={input.name} members={input.members} rows={input.rows} icons={await partyIcons(input.rows)} />
+      <PartyOg
+        name={input.name}
+        members={input.members}
+        rows={input.rows}
+        icons={await partyIcons(input.rows)}
+        invite={invite}
+      />
     ),
   };
 }
@@ -582,6 +591,28 @@ export const GALLERY_CASES: GalleryCase[] = [
       member(4, "carol", 0, [bet("ElevenLabs", "elevenlabs.io", "long", 0)]),
       member(5, "dave", -4.5, [bet("Cursor", "cursor.com", "short", 40)]),
     ],
+  }),
+  partyCase({
+    id: "party-invite",
+    label: "Invite link",
+    note: "the join link: same board, Join in mute before the name",
+    name: "Acme engineering",
+    members: 12,
+    invite: true,
+    rows: [
+      member(1, "alice", 12.4, [bet("Cursor", "cursor.com", "long", 30), bet("Linear", "linear.app", "long", 20), bet("Anthropic", "anthropic.com", "short", 15)]),
+      member(2, "bob", 3, [bet("OpenAI", "openai.com", "long", 25), bet("Figma", "figma.com", "short", 10)]),
+      member(3, "erin", 0, []),
+    ],
+  }),
+  partyCase({
+    id: "party-invite-long",
+    label: "Invite, long name",
+    note: "Join plus a 40-character party name, cut to the width left",
+    name: "The Very Long Party Name For Testing OK",
+    members: 2,
+    invite: true,
+    rows: [member(1, "alice", 4, [bet("Cursor", "cursor.com", "long", 30)])],
   }),
   partyCase({
     id: "party-two",

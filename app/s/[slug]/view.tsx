@@ -1,14 +1,12 @@
-import Link from "next/link";
 import { cacheLife, cacheTag } from "next/cache";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { CommentThread } from "@/components/CommentThread";
-import { Favicon } from "@/components/Favicon";
+import { CompanyHead } from "@/components/CompanyHead";
 import { MarksProvider } from "@/components/Marks";
 import { PositionForm, StanceLinks } from "@/components/PositionForm";
 import { HeadSkeleton, PositionSkeleton, ThreadSkeleton } from "@/components/Skeleton";
 import { PulseBoard } from "@/components/StanceSplit";
-import { isAdmin } from "@/lib/admin";
 import { getCurrentUser } from "@/lib/auth";
 import {
   cachedStartupBySlug,
@@ -23,7 +21,6 @@ import { cachedNow } from "@/lib/clock";
 import { TAG, startupTag } from "@/lib/tags";
 import { nowMs } from "@/lib/time";
 import { commentPath, isThreadSide, isThreadSort } from "@/lib/thread";
-import { heading } from "@/lib/ui";
 import { getViewerMarks } from "@/lib/viewer";
 import { isDirection, type Direction, type Startup } from "@/lib/types";
 
@@ -64,44 +61,8 @@ async function StartupHead({ params }: { params: Params }) {
   const { startup } = await resolve(params);
   return (
     <>
-      <header className="mb-1 grid grid-cols-[40px_minmax(0,1fr)] items-start gap-x-3">
-        <a href={startup.url} rel="noreferrer" target="_blank" className="block leading-none hover:no-underline">
-          <Favicon domain={startup.domain} name={startup.name} size={40} />
-        </a>
-        <div className="min-w-0">
-          <h1 className={heading}>{startup.name}</h1>
-          <p className="m-0 text-sm text-mute">
-            <a href={startup.url} rel="noreferrer" target="_blank">
-              {startup.domain}
-            </a>
-            {startup.source === "hn" && startup.sourceId ? (
-              <>
-                {" · "}
-                <a href={`https://news.ycombinator.com/item?id=${startup.sourceId}`} rel="noreferrer" target="_blank">
-                  Show HN
-                </a>
-              </>
-            ) : null}
-            <Suspense fallback={null}>
-              <AdminLinks slug={startup.slug} />
-            </Suspense>
-          </p>
-        </div>
-      </header>
+      <CompanyHead startup={startup} />
       <MarketBoard startupId={startup.id} slug={startup.slug} />
-    </>
-  );
-}
-
-async function AdminLinks({ slug }: { slug: string }) {
-  const viewer = await getCurrentUser();
-  if (!isAdmin(viewer)) return null;
-  return (
-    <>
-      {" · "}
-      <Link href={`/s/${slug}/edit`}>edit</Link>
-      {" · "}
-      <Link href={`/s/${slug}/delete`}>delete</Link>
     </>
   );
 }

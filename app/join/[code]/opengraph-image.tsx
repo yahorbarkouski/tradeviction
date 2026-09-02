@@ -11,5 +11,5 @@ export default async function Image({ params }: { params: Promise<{ code: string
   const { code } = await params;
   const party = isInviteCode(code) ? await getPartyByCode(code) : null;
   if (!party) return ogImage(<HomeOg />);
-  return partyImage(party);
+  return partyImage(party, true);
 }

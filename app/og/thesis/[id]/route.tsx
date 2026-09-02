@@ -10,7 +10,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (!comment) return ogImage(<HomeOg />);
   const startup = await getStartupById(comment.startupId);
   if (!startup) return ogImage(<HomeOg />);
-  const [market, author] = await Promise.all([getMarket(startup.id, nowMs()), getUserById(comment.userId)]);
+  const now = nowMs();
+  const [market, author] = await Promise.all([getMarket(startup.id, now), getUserById(comment.userId)]);
   const [icon, avatar] = await Promise.all([
     faviconSrc(startup.domain),
     author?.xAvatar ? avatarSrc(xAvatarUrl(author.xAvatar)) : Promise.resolve(null),
@@ -20,7 +21,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       startup={startup}
       text={comment.text}
       username={comment.username}
-      pulse={await thesisPulse(comment, market.pulse)}
+      pulse={await thesisPulse(comment, market.pulse, now)}
       side={comment.position?.direction ?? null}
       icon={icon}
       avatar={avatar}

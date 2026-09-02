@@ -42,9 +42,11 @@ export function bookAlt(username: string, alpha: number, long: number, short: nu
   return `${username} · ${formatAlpha(alpha)} · ${long} long, ${short} short`;
 }
 
-export async function thesisPulse(comment: Comment, fallback: number): Promise<number> {
+// Takes the caller's clock: a bare Date.now() here would leak into the
+// take page's prerender.
+export async function thesisPulse(comment: Comment, fallback: number, now: number): Promise<number> {
   if (!comment.position) return fallback;
-  const line = await getBookLine(comment.startupId, comment.userId);
+  const line = await getBookLine(comment.startupId, comment.userId, now);
   return line?.entryPulse ?? fallback;
 }
 
@@ -77,12 +79,13 @@ export async function loadThesis(slug: string, id: string) {
   const node = findThreadNode(thread, id);
   if (!node) return null;
   const { kids: _kids, ...comment } = node;
-  const market = await getMarket(startup.id, await cachedNow());
+  const now = await cachedNow();
+  const market = await getMarket(startup.id, now);
   return {
     startup,
     comment,
     thread,
     market,
-    pulse: await thesisPulse(comment, market.pulse),
+    pulse: await thesisPulse(comment, market.pulse, now),
   };
 }

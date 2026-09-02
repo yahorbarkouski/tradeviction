@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import { CompanyHead } from "@/components/CompanyHead";
 import { MarksProvider } from "@/components/Marks";
 import { ThreadSkeleton } from "@/components/Skeleton";
 import { ThreadList } from "@/components/ThreadList";
@@ -47,9 +48,9 @@ async function ThesisBody({ params }: Pick<PageProps<"/s/[slug]/c/[id]">, "param
   const href = commentPath(slug, id);
   return (
     <>
-      <p className="mb-4 text-sm text-mute">
-        <Link href={`/s/${slug}`}>{loaded.startup.name}</Link>
-        {" · pulse "}
+      <CompanyHead startup={loaded.startup} link />
+      <p className="mt-3 mb-4 border-t border-line pt-3 text-sm text-mute">
+        {"pulse "}
         {loaded.market.pulse}
         {" · "}
         <Link href={`/s/${slug}`}>all comments</Link>

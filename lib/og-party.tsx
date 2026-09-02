@@ -1,7 +1,8 @@
 import { cachedPartyBoard } from "@/lib/db/parties";
 import { formatAlpha } from "@/lib/format";
 import { iconLetter } from "@/lib/icon";
-import { INK, LINE, LONG, MONO, MUTE, SANS, SHORT, Shell, Wordmark, faviconSrc, ogImage } from "@/lib/og";
+import { CONTENT_W, INK, LINE, LONG, MONO, MUTE, SANS, SHORT, Shell, Wordmark, faviconSrc, ogImage } from "@/lib/og";
+import { TITLE_TYPE, measureText, truncateToWidth } from "@/lib/og-fit";
 import { clip } from "@/lib/share";
 import type { Party, PartyBet, PartyRow } from "@/lib/types";
 
@@ -24,10 +25,16 @@ export async function partyIcons(rows: PartyRow[]): Promise<PartyIcons> {
   return Object.fromEntries(pairs);
 }
 
-export async function partyImage(party: Party) {
+// The invite link unfurls with the same board under a "Join" heading.
+export async function partyImage(party: Party, invite = false) {
   const rows = (await cachedPartyBoard(party.id)).slice(0, OG_TOP);
-  return ogImage(<PartyOg name={party.name} members={party.members} rows={rows} icons={await partyIcons(rows)} />);
+  return ogImage(
+    <PartyOg name={party.name} members={party.members} rows={rows} icons={await partyIcons(rows)} invite={invite} />,
+  );
 }
+
+const TITLE_SIZE = 48;
+const JOIN_GAP = 14;
 
 function Chip({ bet, src }: { bet: PartyBet; src: string | null }) {
   const color = bet.direction === "long" ? LONG : SHORT;
@@ -102,12 +109,17 @@ export function PartyOg({
   members,
   rows,
   icons,
+  invite = false,
 }: {
   name: string;
   members: number;
   rows: PartyRow[];
   icons: PartyIcons;
+  // True on the invite link: the heading reads "Join" in mute before the name.
+  invite?: boolean;
 }) {
+  const joinW = invite ? measureText("Join", TITLE_SIZE, TITLE_TYPE) + JOIN_GAP : 0;
+  const title = truncateToWidth(name, TITLE_SIZE, CONTENT_W - joinW, TITLE_TYPE);
   return (
     <Shell
       meta={
@@ -124,14 +136,16 @@ export function PartyOg({
         style={{
           display: "flex",
           marginTop: 24,
-          fontSize: 48,
+          fontSize: TITLE_SIZE,
           fontWeight: 600,
           fontFamily: SANS,
           letterSpacing: "-0.03em",
           lineHeight: 1.1,
+          whiteSpace: "nowrap",
         }}
       >
-        {clip(name, 30)}
+        {invite ? <div style={{ display: "flex", marginRight: JOIN_GAP, color: MUTE }}>Join</div> : null}
+        <div style={{ display: "flex" }}>{title}</div>
       </div>
       {rows.length === 0 ? (
         <div style={{ display: "flex", marginTop: 36, fontSize: 28, color: MUTE, fontFamily: SANS }}>

@@ -237,16 +237,15 @@ export function HomeOg() {
           display: "flex",
           flexDirection: "column",
           marginTop: 72,
-          fontSize: 52,
+          fontSize: 62,
           fontWeight: 500,
           fontFamily: SANS,
           lineHeight: 1.2,
           letterSpacing: "-0.03em",
         }}
       >
-        <div style={{ display: "flex" }}>Bet your beliefs</div>
-        <div style={{ display: "flex" }}>before they become common knowledge.</div>
-        <div style={{ display: "flex", color: MUTE, marginTop: 8 }}>Long or short a startup.</div>
+        <div style={{ display: "flex" }}>Bet your beliefs before</div>
+        <div style={{ display: "flex" }}>they become common knowledge.</div>
       </div>
     </Shell>
   );
@@ -354,7 +353,7 @@ function Stat({ id, value }: { id: keyof typeof GLYPHS; value: number }) {
   );
 }
 
-const CONTENT_W = 1200 - 64 * 2;
+export const CONTENT_W = 1200 - 64 * 2;
 const MARKET_RIGHT_MIN = 260;
 const MARKET_NAME_SIZES = [64, 56, 48] as const;
 const PULSE_SIZE = 168;
