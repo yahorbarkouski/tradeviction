@@ -16,12 +16,13 @@ import {
   countDeployed,
   getBookLine,
   getMarket,
+  getTakeCommentId,
   movesLeft,
 } from "@/lib/db/queries";
 import { cachedNow } from "@/lib/clock";
 import { TAG, startupTag } from "@/lib/tags";
 import { nowMs } from "@/lib/time";
-import { isThreadSide, isThreadSort } from "@/lib/thread";
+import { commentPath, isThreadSide, isThreadSort } from "@/lib/thread";
 import { heading } from "@/lib/ui";
 import { getViewerMarks } from "@/lib/viewer";
 import { isDirection, type Direction, type Startup } from "@/lib/types";
@@ -125,6 +126,12 @@ async function PositionSlot({ params }: { params: Params }) {
   const deployed = await countDeployed(viewer.id);
   const now = nowMs();
   const [line, moves] = await Promise.all([getBookLine(startup.id, viewer.id, now), movesLeft(viewer.id, now)]);
+  const takeId = line ? await getTakeCommentId(line.position.id) : null;
+  const sharePath = line
+    ? takeId
+      ? commentPath(startup.slug, takeId)
+      : `/s/${startup.slug}/${line.position.direction}`
+    : undefined;
   return (
     <PositionForm
       // A saved change remounts the form with the new position as its baseline.
@@ -136,6 +143,7 @@ async function PositionSlot({ params }: { params: Params }) {
       username={viewer.username}
       preset={preset}
       next={preset ? `/s/${startup.slug}` : undefined}
+      sharePath={sharePath}
     />
   );
 }

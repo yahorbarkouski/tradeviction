@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { xStartAction, xUnlinkAction, xVerifyAction } from "@/app/actions";
+import { Confirm } from "@/components/Confirm";
 import { copyText } from "@/lib/clipboard";
 import type { XChallenge } from "@/lib/types";
 
@@ -52,11 +53,7 @@ export function XLink({
     return (
       <>
         {" · "}
-        <form action={xUnlinkAction} className="contents">
-          <button type="submit" className={pipe}>
-            unlink X
-          </button>
-        </form>
+        <Confirm action={xUnlinkAction} label="unlink X" className={pipe} />
       </>
     );
   }

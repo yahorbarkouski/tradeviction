@@ -30,11 +30,11 @@ describe("opening a position", () => {
     const position = await getActivePosition(startup.id, user.id);
     expect(position?.direction).toBe("long");
     expect(position?.conviction).toBe(10);
-    expect(position?.note).toBe("A first thesis.");
+    expect(position?.note).toBe("A first thesis");
     expect(await lots(user.id)).toEqual([{ conviction: 10, closed_at: null, realized_alpha: null }]);
     expect((await listEventsForStartup(startup.id)).map((e) => e.kind)).toEqual(["open"]);
     const comment = await getRow("SELECT text, position_id, parent_id FROM comments WHERE user_id = ?", [user.id]);
-    expect(comment?.text).toBe("A first thesis.");
+    expect(comment?.text).toBe("A first thesis");
     expect(comment?.position_id).toBe(position?.id);
     expect(comment?.parent_id).toBeNull();
     expect(await countDeployed(user.id)).toBe(10);
@@ -123,7 +123,7 @@ describe("opening a position", () => {
     expect(await countDeployed(racer.id)).toBe(60);
   });
 
-  it("allows ten moves a day and resets at the UTC day boundary", async () => {
+  it("allows a day's moves and resets at the UTC day boundary", async () => {
     clock.set(Date.parse("2026-09-02T12:00:00.000Z"));
     const user = await makeUser();
     for (let i = 0; i < MOVES_PER_DAY; i += 1) {

@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState } from "react";
 import { adminDeleteCommentAction, adminUpdateCommentAction } from "@/app/actions";
+import { Confirm } from "@/components/Confirm";
 import { area, btn, ghost } from "@/lib/ui";
 
 const pipe =
@@ -18,7 +19,6 @@ export function AdminCommentMeta({
   next: string;
   onEdit: () => void;
 }) {
-  const [confirm, setConfirm] = useState(false);
   if (!admin) return null;
   return (
     <>
@@ -27,23 +27,10 @@ export function AdminCommentMeta({
         edit
       </button>
       {" | "}
-      {confirm ? (
-        <form action={adminDeleteCommentAction} className="inline">
-          <input type="hidden" name="commentId" value={commentId} />
-          <input type="hidden" name="next" value={next} />
-          <button type="submit" className={pipe}>
-            yes
-          </button>
-          {" / "}
-          <button type="button" className={pipe} onClick={() => setConfirm(false)}>
-            no
-          </button>
-        </form>
-      ) : (
-        <button type="button" className={pipe} onClick={() => setConfirm(true)}>
-          delete
-        </button>
-      )}
+      <Confirm action={adminDeleteCommentAction} label="delete" className={pipe}>
+        <input type="hidden" name="commentId" value={commentId} />
+        <input type="hidden" name="next" value={next} />
+      </Confirm>
     </>
   );
 }

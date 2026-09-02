@@ -2,7 +2,7 @@ import { DAY_MS } from "@/lib/time";
 import type { Phase } from "@/lib/types";
 
 export const CONVICTION_CAP = 100;
-export const MOVES_PER_DAY = 10;
+export const MOVES_PER_DAY = 30;
 export const ACTIVE_MIN = 1;
 export const PRIOR = 2;
 export const PULSE_FLOOR = 0.01;
@@ -239,9 +239,20 @@ export function median(values: number[]): number {
   return ((b ?? 0) + (a ?? 0)) / 2;
 }
 
-export function heatAt(touches: Touch[], firsts: Map<string, number>, at: number, counted: Counted): Heat {
+// Whether a recent actor is still in the market. Heat counts touches from the
+// last three days, but only from people who still hold a position or a take;
+// someone who opened and closed, or posted and deleted, leaves no heat behind.
+export type Engaged = (userId: string) => boolean;
+
+export function heatAt(
+  touches: Touch[],
+  firsts: Map<string, number>,
+  at: number,
+  counted: Counted,
+  engaged: Engaged = () => true,
+): Heat {
   const from = at - HEAT_MS;
-  const users = windowUsers(touches, from, at, counted);
+  const users = new Set([...windowUsers(touches, from, at, counted)].filter(engaged));
   const actors = users.size;
   const samples: number[] = [];
   const baselineEnd = from;

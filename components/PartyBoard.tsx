@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { leavePartyAction, rotateInviteAction } from "@/app/actions";
+import { Confirm } from "@/components/Confirm";
 import { Favicon } from "@/components/Favicon";
 import { MetricHead } from "@/components/Metric";
 import { PartyInvite } from "@/components/PartyInvite";
@@ -42,23 +43,22 @@ export function PartyBoard({
           {member ? (
             <>
               {" · "}
-              <form action={leavePartyAction} className="contents">
+              <Confirm action={leavePartyAction} label="leave" className={pipe}>
                 <input type="hidden" name="partyId" value={party.id} />
-                <button type="submit" className={pipe}>
-                  leave
-                </button>
-              </form>
+              </Confirm>
             </>
           ) : null}
           {manager ? (
             <>
               {" · "}
-              <form action={rotateInviteAction} className="contents">
+              <Confirm
+                action={rotateInviteAction}
+                label="new link"
+                className={pipe}
+                title="Replace the invite link. The old one stops working."
+              >
                 <input type="hidden" name="partyId" value={party.id} />
-                <button type="submit" className={pipe} title="Replace the invite link. The old one stops working.">
-                  new link
-                </button>
-              </form>
+              </Confirm>
               {" · "}
               <Link href={`/p/${party.slug}/delete`}>delete</Link>
             </>

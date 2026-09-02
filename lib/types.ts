@@ -41,12 +41,23 @@ export type Startup = {
 };
 
 export type LookupHit = {
+  id: string;
   slug: string;
   name: string;
   description: string;
   domain: string;
   url: string;
   exact: boolean;
+};
+
+// A startup the Book editor offers as somewhere to put Conviction.
+export type StartupPick = {
+  id: string;
+  slug: string;
+  name: string;
+  domain: string;
+  description: string;
+  pulse: number;
 };
 
 export type Phase = "forming" | "quiet" | "hot" | "active";
@@ -176,7 +187,6 @@ export type PlayerStats = {
   alpha: number;
   karma: number;
   deployed: number;
-  movesLeft: number;
   established: boolean;
 };
 

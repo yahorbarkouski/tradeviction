@@ -21,7 +21,7 @@ import {
   listUserReceipts,
 } from "@/lib/db/queries";
 import { formatAlpha, formatRank, formatWhen, stanceTone, stanceWord } from "@/lib/format";
-import { FRESH_MS } from "@/lib/market";
+import { CONVICTION_CAP, FRESH_MS } from "@/lib/market";
 import { nowMs } from "@/lib/time";
 import { bookAlt, loadProfileBook } from "@/lib/share";
 import { xAvatarUrl } from "@/lib/x";
@@ -118,10 +118,10 @@ async function ProfileBody({ params }: Pick<PageProps<"/u/[username]">, "params"
             joined {formatWhen(user.createdAt)}
             {" · "}
             <span title="Conviction">
-              <MetricLabel id="conviction">{stats.deployed}/100</MetricLabel>
+              <MetricLabel id="conviction">
+                {CONVICTION_CAP - stats.deployed}/{CONVICTION_CAP} left
+              </MetricLabel>
             </span>
-            {" · "}
-            {stats.movesLeft} moves left
             {user.xHandle ? (
               <>
                 {" · "}

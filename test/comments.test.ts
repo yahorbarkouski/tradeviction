@@ -160,7 +160,7 @@ describe("front page", () => {
 
     const page = await frontPage(bob);
     expect(page.total).toBe(1);
-    expect(page.texts).toEqual(["A root thesis for the front page."]);
+    expect(page.texts).toEqual(["A root thesis for the front page"]);
     expect(page.items[0]?.points).toBe(2);
     expect(page.items[0]?.score).toBeCloseTo(1 + PROVISIONAL_WEIGHT);
     expect(page.items[0]?.replies).toBe(1);

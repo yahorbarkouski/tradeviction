@@ -28,9 +28,6 @@ export function PartyForm() {
       <button className={`mt-3.5 ${btn}`} type="submit" disabled={pending}>
         {pending ? "Creating" : "Create party"}
       </button>
-      <p className="mt-2 text-sm text-mute">
-        You get an invite link to share. Everyone who joins sees the board.
-      </p>
     </form>
   );
 }

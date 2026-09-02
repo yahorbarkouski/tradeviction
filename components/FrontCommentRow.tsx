@@ -60,12 +60,12 @@ function Row({
   return (
     <article
       className={cx(
-        "grid grid-cols-[2.5ch_1rem_minmax(0,1fr)] items-start gap-x-1.5 pt-1 pb-2 text-base",
+        "grid grid-cols-[2.5ch_0.5rem_minmax(0,1fr)] items-start gap-x-1.5 pt-1 pb-2 text-base",
         item.dead && "opacity-50",
       )}
       id={item.id}
     >
-      <span className="flex h-[1.35em] items-center justify-end font-mono text-sm tabular-nums text-mute">
+      <span className="flex h-[1.35em] items-center justify-end font-mono text-sm tabular-nums text-mute pt-1">
         {rank}.
       </span>
       <Vote

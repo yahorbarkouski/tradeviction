@@ -431,7 +431,7 @@ describe("a big party", () => {
     const startups: Startup[] = [];
     for (let i = 0; i < 50; i += 1) startups.push(await makeStartup(`Company ${String(i).padStart(2, "0")}`));
 
-    // The owner opens the first ten through the real book, spending the day's moves.
+    // The owner fills the Book through the real path, then the rest are 0-Conviction watches.
     for (const [i, startup] of startups.slice(0, 10).entries()) {
       const result = await openPosition(owner, startup, {
         direction: i % 2 === 0 ? "long" : "short",
@@ -441,10 +441,6 @@ describe("a big party", () => {
       expect(result.state).toBeNull();
       clock.advance(5_000);
     }
-    expect((await openPosition(owner, startups[10] ?? startups[0]!, { conviction: 0 })).state?.error).toMatch(
-      /No commitment moves left/,
-    );
-    // The other forty go straight in: 0 Conviction watch positions, half short.
     for (const [i, startup] of startups.slice(10).entries()) {
       await holdPosition(owner, startup, i % 2 === 0 ? "long" : "short", 0, Date.now() + i);
     }

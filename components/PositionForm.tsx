@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { useActionState, useOptimistic, useState } from "react";
 import { bookAction, type ActionState } from "@/app/actions";
+import { Confirm } from "@/components/Confirm";
 import { Honeypot } from "@/components/Honeypot";
 import { MetricLabel } from "@/components/Metric";
+import { ShareLink } from "@/components/ShareLink";
 import { CONVICTION_CAP, MOVES_PER_DAY } from "@/lib/game";
 import { formatAlpha, stanceTone, stanceWord } from "@/lib/format";
 import { NOTE_MAX } from "@/lib/slug";
@@ -37,6 +39,7 @@ export function PositionForm({
   username,
   preset = null,
   next,
+  sharePath,
 }: {
   startupId: string;
   line: BookLine | null;
@@ -46,6 +49,8 @@ export function PositionForm({
   preset?: Direction | null;
   // Set on the /long and /short entry pages, which land on the startup page after a save.
   next?: string;
+  // What [ SHARE ] copies: the take's permalink, or the stance page when there is no take.
+  sharePath?: string;
 }) {
   const current = line?.position ?? null;
   const [direction, setDirection] = useState<Direction | null>(preset ?? current?.direction ?? null);
@@ -72,7 +77,7 @@ export function PositionForm({
   return (
     <section className="mb-8" id="position" aria-busy={pendingChange !== null}>
       {line ? (
-        <HeldPosition line={line} action={action} pending={pending} pendingChange={pendingChange} />
+        <HeldPosition line={line} action={action} pending={pending} pendingChange={pendingChange} sharePath={sharePath} />
       ) : pendingChange ? (
         <div className={cx(kicker, "opacity-60")}>
           Opening <span className={stanceTone(pendingChange.direction)}>{stanceWord(pendingChange.direction)}</span>{" "}
@@ -179,11 +184,13 @@ function HeldPosition({
   action,
   pending,
   pendingChange,
+  sharePath,
 }: {
   line: BookLine;
   action: (formData: FormData) => void | Promise<void>;
   pending: boolean;
   pendingChange: PendingChange | null;
+  sharePath?: string;
 }) {
   const { position } = line;
   const shown =
@@ -197,13 +204,18 @@ function HeldPosition({
     <div className={cx(pendingChange && "opacity-60")}>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className={kicker}>{pendingChange?.close ? "Closing your position" : "Your position"}</div>
-        <ClosePositionForm
-          startupId={position.startupId}
-          direction={position.direction}
-          conviction={position.conviction}
-          action={action}
-          pending={pending}
-        />
+        <div className="flex items-center gap-x-4">
+          {sharePath ? (
+            <ShareLink path={sharePath} label="[ SHARE ]" copiedLabel="[ COPIED ]" className={closeBtn} />
+          ) : null}
+          <ClosePositionForm
+            startupId={position.startupId}
+            direction={position.direction}
+            conviction={position.conviction}
+            action={action}
+            pending={pending}
+          />
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
         <div>
@@ -269,22 +281,25 @@ export function ClosePositionForm({
 }) {
   const word = stanceWord(direction);
   return (
-    <form action={action}>
-      <Honeypot />
-      <input type="hidden" name="startupId" value={startupId} />
-      <input type="hidden" name="close" value="1" />
-      <input type="hidden" name="direction" value={direction} />
-      <input type="hidden" name="conviction" value="0" />
-      {next ? <input type="hidden" name="next" value={next} /> : null}
-      <button
-        type="submit"
+    <span className="inline-flex items-center gap-x-1">
+      <Confirm
+        action={action}
+        label="[ CLOSE ]"
+        question="SURE?"
+        yes="[ YES ]"
+        no="[ NO ]"
         className={closeBtn}
         disabled={pending}
-        aria-label={conviction >= 1 ? `Close ${word} ${conviction}` : `Close inactive ${word}`}
+        ariaLabel={conviction >= 1 ? `Close ${word} ${conviction}` : `Close inactive ${word}`}
       >
-        [ CLOSE ]
-      </button>
-    </form>
+        <Honeypot />
+        <input type="hidden" name="startupId" value={startupId} />
+        <input type="hidden" name="close" value="1" />
+        <input type="hidden" name="direction" value={direction} />
+        <input type="hidden" name="conviction" value="0" />
+        {next ? <input type="hidden" name="next" value={next} /> : null}
+      </Confirm>
+    </span>
   );
 }
 
@@ -333,6 +348,13 @@ function changeHint(
   return "Spends 1 move.";
 }
 
+function stanceSkin(side: Direction, on: boolean): string {
+  if (side === "long") {
+    return on ? "border-long bg-long text-bg" : "border-long bg-transparent text-long";
+  }
+  return on ? "border-short bg-short text-bg" : "border-short bg-transparent text-short";
+}
+
 function StanceButton({
   side,
   on,
@@ -342,10 +364,8 @@ function StanceButton({
   on: boolean;
   onClick: () => void;
 }) {
-  const tone = side === "long" ? "text-long border-long" : "text-short border-short";
-  const fill = side === "long" ? "bg-long text-bg" : "bg-short text-bg";
   return (
-    <button type="button" className={cx(stance, on ? fill : tone)} onClick={onClick}>
+    <button type="button" aria-pressed={on} className={cx(stance, stanceSkin(side, on))} onClick={onClick}>
       [ {side} ]
     </button>
   );
@@ -361,21 +381,13 @@ export function StanceLinks({ slug, preset = null }: { slug: string; preset?: Di
       <div className="flex gap-2">
         <Link
           href={`/login?next=/s/${slug}/long`}
-          className={cx(
-            stance,
-            "hover:no-underline",
-            preset === "long" ? "bg-long text-bg" : "border-long text-long",
-          )}
+          className={cx(stance, "hover:no-underline", stanceSkin("long", preset === "long"))}
         >
           [ long ]
         </Link>
         <Link
           href={`/login?next=/s/${slug}/short`}
-          className={cx(
-            stance,
-            "hover:no-underline",
-            preset === "short" ? "bg-short text-bg" : "border-short text-short",
-          )}
+          className={cx(stance, "hover:no-underline", stanceSkin("short", preset === "short"))}
         >
           [ short ]
         </Link>

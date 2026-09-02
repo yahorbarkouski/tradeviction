@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { accounted, loadWorld } from "@/lib/engine";
-import { applyBookChange, getMarket, setMuted, setTrusted } from "@/lib/db/queries";
+import { applyBookChange, deleteCommentTree, getMarket, setMuted, setTrusted } from "@/lib/db/queries";
 import { ELIGIBLE_AGE_MS, GENESIS_N, GENESIS_WINDOW_MS } from "@/lib/market";
 import { DAY_MS } from "@/lib/time";
-import { clock, endorse, establish, makeStartup, makeUser, plainComment, vote } from "./harness/factories";
+import { clock, endorse, establish, makeStartup, makeUser, plainComment, thesisOf, vote } from "./harness/factories";
 
 describe("accounted", () => {
   it("needs seven days, three startups, and an endorsement, or trust, or a checkmark; muting removes it", async () => {
@@ -156,5 +156,30 @@ describe("pulse and depth", () => {
     }
     clock.advance(GENESIS_WINDOW_MS + 1);
     expect((await getMarket(startup.id)).forming).toBe(true);
+  });
+});
+
+describe("hotness", () => {
+  it("counts a recent actor only while they still hold a position or a take", async () => {
+    clock.freeze();
+    const startup = await makeStartup();
+    const user = await makeUser({ trusted: true });
+    await applyBookChange({
+      startupId: startup.id,
+      userId: user.id,
+      direction: "long",
+      conviction: 10,
+      note: "A take that stays up after the position closes.",
+    });
+    expect((await getMarket(startup.id)).heatActors).toBe(1);
+
+    await applyBookChange({ startupId: startup.id, userId: user.id, direction: "long", conviction: 0, note: "", close: true });
+    // The take is still up, so closing alone keeps them in the window.
+    expect((await getMarket(startup.id)).heatActors).toBe(1);
+
+    await deleteCommentTree(await thesisOf(user, startup));
+    const market = await getMarket(startup.id);
+    expect(market.heatActors).toBe(0);
+    expect(market.hotness).toBe(0);
   });
 });

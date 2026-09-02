@@ -185,21 +185,21 @@ describe("vote weight", () => {
     await vote(bob, newer);
     await vote(carol, older);
     expect((await frontPage()).texts).toEqual([
-      "T2 newer thesis about the second company.",
-      "T1 older thesis about the first company.",
+      "T2 newer thesis about the second company",
+      "T1 older thesis about the first company",
     ]);
 
     await setTrusted(carol.id, true);
     const page = await frontPage();
     expect(page.texts).toEqual([
-      "T1 older thesis about the first company.",
-      "T2 newer thesis about the second company.",
+      "T1 older thesis about the first company",
+      "T2 newer thesis about the second company",
     ]);
     expect(page.items[0]?.score).toBeCloseTo(1);
     expect(page.items[1]?.score).toBeCloseTo(PROVISIONAL_WEIGHT);
     expect(page.items.map((item) => item.points)).toEqual([1, 1]);
 
     await setTrusted(carol.id, false);
-    expect((await frontPage()).texts[0]).toBe("T2 newer thesis about the second company.");
+    expect((await frontPage()).texts[0]).toBe("T2 newer thesis about the second company");
   });
 });

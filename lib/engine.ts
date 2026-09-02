@@ -50,6 +50,8 @@ export type WorldData = {
   books: Map<string, WorldSlice[]>;
   touches: Map<string, Touch[]>;
   comments: Map<string, number>;
+  // Who still has a comment up on each startup.
+  commenters: Map<string, Set<string>>;
 };
 
 export type World = WorldData & { now: number };
@@ -83,7 +85,7 @@ async function readWorldData(): Promise<WorldData> {
         UNION ALL
         SELECT user_id, startup_id, created_at AS at FROM comments
       `),
-      allRows("SELECT startup_id, COUNT(*) AS n FROM comments GROUP BY startup_id"),
+      allRows("SELECT startup_id, user_id FROM comments"),
       allRows(`
         SELECT c.user_id, MIN(cv.created_at) AS at
         FROM comment_votes cv
@@ -167,11 +169,17 @@ async function readWorldData(): Promise<WorldData> {
   }
 
   const comments = new Map<string, number>();
+  const commenters = new Map<string, Set<string>>();
   for (const row of commentRows) {
-    comments.set(str(row, "startup_id"), int(row, "n"));
+    const startupId = str(row, "startup_id");
+    const userId = str(row, "user_id");
+    comments.set(startupId, (comments.get(startupId) ?? 0) + 1);
+    const set = commenters.get(startupId);
+    if (set) set.add(userId);
+    else commenters.set(startupId, new Set([userId]));
   }
 
-  return { users, origins, slices, books, touches, comments };
+  return { users, origins, slices, books, touches, comments, commenters };
 }
 
 // The whole site shares one entry. Every write that touches users, startups,
@@ -234,7 +242,12 @@ function memoOf(world: World, startupId: string): Memo {
   const discovery = discover(slices, touches, originOf(world, startupId), world.now, who);
   const quietDays = quietStreakDays(touches, originOf(world, startupId), world.now, who);
   const weekActors = windowActors(touches, world.now - ATTENTION_MS, world.now, who);
-  const heat = heatAt(touches, firstSeen(touches), world.now, who);
+  // Still in the market: an open position at any conviction, or a comment still up.
+  const engaged = new Set(world.commenters.get(startupId) ?? []);
+  for (const book of world.books.get(startupId) ?? []) {
+    if (book.closedAt === null) engaged.add(book.userId);
+  }
+  const heat = heatAt(touches, firstSeen(touches), world.now, who, (userId) => engaged.has(userId));
   const memo: Memo = { genesis, discovery, quietDays, weekActors, heat };
   cache.set(startupId, memo);
   memos.set(world, cache);

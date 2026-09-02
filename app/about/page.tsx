@@ -14,7 +14,7 @@ export default function AboutPage() {
     <article className={`${page} leading-[1.42]`}>
       <h1 className={heading}>How it works</h1>
       <div className="mt-5 space-y-5">
-        <p>Every company has a conviction market.</p>
+        <p>Every company has a conviction market. Bet your beliefs before they become common knowledge.</p>
         <p>
           Earn <Term id="alpha" /> points by being early to what others get wrong: go{" "}
           <Side side="long" /> on companies people underestimate, and <Side side="short" /> on
@@ -40,11 +40,8 @@ export default function AboutPage() {
           Explain your position with arguments to earn <Term id="karma" />.
         </p>
         <p>
-          Make a <Link href="/parties">party</Link> for your company or your group chat and share its
-          invite link. The party board ranks members by <Term id="alpha" /> and shows what each of them
-          is <Side side="long" /> and <Side side="short" />.
+          Make <Link href="/parties" className="text-mute">parties</Link> to compare your vision with friends. 
         </p>
-        <p>Bet your beliefs before they become common knowledge.</p>
       </div>
     </article>
   );

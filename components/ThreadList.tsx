@@ -6,6 +6,7 @@ import { AdminCommentEdit, AdminCommentMeta } from "@/components/AdminComment";
 import { FlagVouch } from "@/components/FlagVouch";
 import { useMarks } from "@/components/Marks";
 import { ReplyForm } from "@/components/ReplyForm";
+import { ShareLink } from "@/components/ShareLink";
 import { UserLink } from "@/components/UserLink";
 import { Vote } from "@/components/Vote";
 import { useNow } from "@/components/useNow";
@@ -190,6 +191,8 @@ function Body({
         ) : (
           <Link href={`/login?next=${encodeURIComponent(href)}`}>reply</Link>
         )}
+        {" · "}
+        <ShareLink path={dest} />
       </div>
       {node.kids.map((kid) => (
         <CommentNode key={kid.id} node={kid} now={now} href={href} slug={slug} depth={depth + 1} pending={pending} />

@@ -10,7 +10,7 @@ export const qty =
 
 export const area = `${input} min-h-24 resize-y`;
 
-const tap =
+export const tap =
   "transition-[color,opacity,transform,background-color,border-color] duration-[160ms] ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.96]";
 
 export const btn =
@@ -31,7 +31,7 @@ export const metric = "font-mono text-lg font-medium leading-none tracking-[-0.0
 export const num = "font-mono text-base font-medium tabular-nums";
 
 export const stance =
-  `min-h-10 border bg-transparent px-3.5 py-1.5 font-sans ${tap} hover:no-underline`;
+  `min-h-10 border px-3.5 py-1.5 font-sans ${tap} hover:no-underline`;
 
 export const closeBtn =
   `inline-flex min-h-10 shrink-0 items-center bg-transparent px-0 py-2 font-sans text-base text-mute underline decoration-1 underline-offset-[0.12em] ${tap} hover:text-ink hover:opacity-70 hover:no-underline disabled:cursor-not-allowed disabled:opacity-40 disabled:no-underline`;

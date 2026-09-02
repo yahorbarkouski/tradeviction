@@ -1809,13 +1809,12 @@ export async function scorePlayers(userIds: string[], now = Date.now()): Promise
 
 export async function getPlayerStats(userId: string, now = Date.now()): Promise<PlayerStats> {
   const world = await cachedWorld(now);
-  const [alpha, karma, deployed, moves] = await Promise.all([
+  const [alpha, karma, deployed] = await Promise.all([
     getPlayerAlpha(userId, now, world),
     getKarma(userId, now),
     countDeployed(userId),
-    movesLeft(userId, now),
   ]);
-  return { alpha, karma, deployed, movesLeft: moves, established: accounted(world, userId, now) };
+  return { alpha, karma, deployed, established: accounted(world, userId, now) };
 }
 
 export async function countPlayers(): Promise<number> {
@@ -1834,4 +1833,13 @@ export async function alphaRank(userId: string, now = Date.now()): Promise<numbe
   const index = scores.findIndex((row) => row.id === userId);
   if (index < 0) return 50;
   return ((index + 1) / scores.length) * 100;
+}
+
+// The root take a position was opened with, when its note was not empty.
+export async function getTakeCommentId(positionId: string): Promise<string | null> {
+  const row = await getRow(
+    "SELECT id FROM comments WHERE position_id = ? AND parent_id IS NULL ORDER BY created_at ASC LIMIT 1",
+    [positionId],
+  );
+  return row ? str(row, "id") : null;
 }
