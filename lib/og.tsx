@@ -67,6 +67,14 @@ async function tightenIcon(buf: ArrayBuffer): Promise<Buffer | null> {
   }
 }
 
+// How long a card may sit at the CDN. Browsers and crawlers re-check on every
+// visit; the edge keeps a card for five minutes and serves it stale while a
+// fresh one renders. Left alone, @vercel/og marks every card immutable for a year.
+const CARD_CACHE =
+  process.env.NODE_ENV === "development"
+    ? "no-cache, no-store"
+    : "public, max-age=0, s-maxage=300, stale-while-revalidate=86400";
+
 export async function ogImage(element: ReactElement): Promise<ImageResponse> {
   const [sans400, sans500, sans600, mono500] = await loadFonts();
   return new ImageResponse(element, {
@@ -77,6 +85,7 @@ export async function ogImage(element: ReactElement): Promise<ImageResponse> {
       { name: SANS, data: sans600, weight: 600, style: "normal" },
       { name: MONO, data: mono500, weight: 500, style: "normal" },
     ],
+    headers: { "cache-control": CARD_CACHE },
   });
 }
 
