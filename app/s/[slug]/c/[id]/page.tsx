@@ -3,10 +3,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { CompanyHead } from "@/components/CompanyHead";
+import { MarketBoard } from "@/components/MarketBoard";
 import { MarksProvider } from "@/components/Marks";
-import { ThreadSkeleton } from "@/components/Skeleton";
+import { HeadSkeleton, ThreadSkeleton } from "@/components/Skeleton";
 import { ThreadList } from "@/components/ThreadList";
-import { clip, loadThesis, OG_SIZE, thesisAlt } from "@/lib/share";
+import { loadThesis, pageMeta, takeBlurb, takeTitle, takeXTitle, thesisAlt } from "@/lib/share";
 import { commentPath, findThreadNode } from "@/lib/thread";
 import { cachedNow } from "@/lib/clock";
 import { getViewerMarks } from "@/lib/viewer";
@@ -16,25 +17,24 @@ export async function generateMetadata({ params }: PageProps<"/s/[slug]/c/[id]">
   const loaded = await loadThesis(slug, id);
   if (!loaded) return { title: "not found" };
   const { comment, startup, pulse } = loaded;
-  const side = comment.position?.direction;
-  const lead = side ? `${comment.username} ${side} ${startup.name}` : `${comment.username} on ${startup.name}`;
-  const image = `/og/thesis/${id}`;
-  return {
-    title: clip(comment.text, 70),
-    description: `${lead} · pulse ${pulse}`,
-    openGraph: {
-      images: [{ url: image, ...OG_SIZE, alt: thesisAlt(comment, startup, pulse) }],
-    },
-    twitter: {
-      card: "summary_large_image",
-      images: [image],
-    },
-  };
+  return pageMeta({
+    title: takeTitle(comment),
+    xTitle: takeXTitle(comment, startup),
+    description: takeBlurb(comment, startup, pulse),
+    image: { url: `/og/thesis/${id}`, alt: thesisAlt(comment, startup, pulse) },
+  });
 }
 
 export default function ThesisPage({ params }: PageProps<"/s/[slug]/c/[id]">) {
   return (
-    <Suspense fallback={<ThreadSkeleton />}>
+    <Suspense
+      fallback={
+        <>
+          <HeadSkeleton />
+          <ThreadSkeleton />
+        </>
+      }
+    >
       <ThesisBody params={params} />
     </Suspense>
   );
@@ -49,10 +49,8 @@ async function ThesisBody({ params }: Pick<PageProps<"/s/[slug]/c/[id]">, "param
   return (
     <>
       <CompanyHead startup={loaded.startup} link />
-      <p className="mt-3 mb-4 border-t border-line pt-3 text-sm text-mute">
-        {"pulse "}
-        {loaded.market.pulse}
-        {" · "}
+      <MarketBoard startupId={loaded.startup.id} slug={slug} />
+      <p className="mb-4 text-sm text-mute">
         <Link href={`/s/${slug}`}>all comments</Link>
       </p>
       <MarksProvider marks={getViewerMarks()}>

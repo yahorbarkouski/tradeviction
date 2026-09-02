@@ -10,7 +10,7 @@ import type { Startup } from "@/lib/types";
 // page title; on a take's page it links back to the company.
 export function CompanyHead({ startup, link = false }: { startup: Startup; link?: boolean }) {
   return (
-    <header className="mb-1 grid grid-cols-[40px_minmax(0,1fr)] items-start gap-x-3">
+    <header className="mb-0.5 grid grid-cols-[40px_minmax(0,1fr)] items-start gap-x-3">
       <a href={startup.url} rel="noreferrer" target="_blank" className="block leading-none hover:no-underline">
         <Favicon domain={startup.domain} name={startup.name} size={40} />
       </a>

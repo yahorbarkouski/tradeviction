@@ -2,9 +2,21 @@ import type { ReactElement } from "react";
 import { emptyMarket } from "@/lib/engine";
 import { pulseDisplay, pulseP } from "@/lib/market";
 import { HomeOg, ProfileOg, StartupOg, ThesisOg, avatarSrc, bookIcons, faviconSrc } from "@/lib/og";
+import { HOME_BLURB, TAGLINE } from "@/lib/copy";
 import { PartyOg, partyIcons } from "@/lib/og-party";
-import { partyAlt } from "@/lib/party";
-import { bookAlt, clip, marketAlt, stanceAlt, thesisAlt } from "@/lib/share";
+import { inviteBlurb, inviteTitle, partyBlurb, partyTitle } from "@/lib/party";
+import {
+  bookBlurb,
+  bookTitle,
+  marketBlurb,
+  marketTitle,
+  stanceBlurb,
+  stanceTitle,
+  takeBlurb,
+  takeTitle,
+  takeXTitle,
+  thesisAlt,
+} from "@/lib/share";
 import type { BookLine, Comment, Direction, Market, PartyBet, PartyRow, Phase, Startup } from "@/lib/types";
 
 // Every Open Graph card the site can emit, on fixtures that each stress one
@@ -39,14 +51,14 @@ export type GalleryCase = {
   note: string;
   // The page family this card is attached to.
   route: string;
-  // What the page's <head> carries next to the image.
+  // What the page's <head> carries next to the image: the shared title, what
+  // X shows in its pill when that differs, and the description.
   title: string;
+  xTitle?: string;
   description: string;
   alt: string;
   render: () => Promise<ReactElement>;
 };
-
-const SITE_DESCRIPTION = "The market of record for expressed startup conviction.";
 
 // The static alt exports of the opengraph-image routes, repeated so the
 // caption shows what a crawler actually reads.
@@ -59,10 +71,6 @@ const HOME_ALT = "Bet your beliefs before they become common knowledge.";
 
 // A stable public avatar for fixtures that have a linked X account.
 const AVATAR_URL = "https://github.com/octocat.png?size=112";
-
-function titled(title: string): string {
-  return `${title} | Tradeviction`;
-}
 
 function startup(name: string, domain: string): Startup {
   const slug = domain.split(".")[0] ?? "gallery";
@@ -191,8 +199,8 @@ function marketCase(
     label: input.label,
     note: input.note,
     route: intent ? `/s/${s.slug}/${intent}` : `/s/${s.slug}`,
-    title: titled(intent ? `${intent} ${s.name}` : s.name),
-    description: intent ? stanceAlt(intent, s, m.pulse) : marketAlt(s, m.pulse, m.forming),
+    title: intent ? stanceTitle(intent, s, m) : marketTitle(s, m),
+    description: intent ? stanceBlurb(intent, m) : marketBlurb(m),
     alt: intent ? STANCE_ALT : MARKET_ALT,
     render: async () => <StartupOg startup={s} market={m} intent={intent} icon={await icon()} />,
   };
@@ -208,8 +216,6 @@ function profileCase(input: {
   avatarUrl?: string;
   rank?: number;
 }): GalleryCase {
-  const long = input.lines.filter((l) => l.position.direction === "long").length;
-  const short = input.lines.length - long;
   const avatar = avatarFor(input.avatarUrl);
   return {
     id: input.id,
@@ -217,8 +223,8 @@ function profileCase(input: {
     label: input.label,
     note: input.note,
     route: `/u/${input.username}`,
-    title: titled(input.username),
-    description: bookAlt(input.username, input.alpha, long, short),
+    title: bookTitle(input.username, input.alpha, input.lines.length),
+    description: bookBlurb({ alpha: input.alpha, rank: input.rank ?? null, lines: input.lines }),
     alt: BOOK_ALT,
     render: async () => {
       const [avatarSrcValue, icons] = await Promise.all([avatar(), bookIcons(input.lines)]);
@@ -271,8 +277,10 @@ function partyCase(input: {
     label: input.label,
     note: input.note,
     route: invite ? "/join/[code]" : `/p/${slug}`,
-    title: titled(invite ? `Join ${input.name}` : input.name),
-    description: partyAlt(input.name, input.members, input.rows),
+    title: invite ? inviteTitle(input.name) : partyTitle(input.name, input.members),
+    description: invite
+      ? inviteBlurb(input.name, input.members, input.rows)
+      : partyBlurb(input.name, input.members, input.rows),
     alt: invite ? INVITE_ALT : PARTY_ALT,
     render: async () => (
       <PartyOg
@@ -300,9 +308,6 @@ function thesisCase(
   },
 ): GalleryCase {
   const c = comment(input.text, input.username, input.side, input.startup.id);
-  const lead = input.side
-    ? `${input.username} ${input.side} ${input.startup.name}`
-    : `${input.username} on ${input.startup.name}`;
   const icon = iconFor(input.startup.domain, input);
   const avatar = avatarFor(input.avatarUrl);
   return {
@@ -311,8 +316,9 @@ function thesisCase(
     label: input.label,
     note: input.note,
     route: `/s/${input.startup.slug}/c/[id]`,
-    title: titled(clip(input.text, 70)),
-    description: `${lead} · pulse ${input.pulse}`,
+    title: takeTitle(c),
+    xTitle: takeXTitle(c, input.startup),
+    description: takeBlurb(c, input.startup, input.pulse),
     alt: thesisAlt(c, input.startup, input.pulse),
     render: async () => {
       const [iconSrc, avatarSrcValue] = await Promise.all([icon(), avatar()]);
@@ -369,8 +375,8 @@ export const GALLERY_CASES: GalleryCase[] = [
     label: "Home",
     note: "the only card without data",
     route: "/",
-    title: "Tradeviction",
-    description: SITE_DESCRIPTION,
+    title: TAGLINE,
+    description: HOME_BLURB,
     alt: HOME_ALT,
     render: async () => <HomeOg />,
   },

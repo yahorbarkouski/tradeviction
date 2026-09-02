@@ -11,7 +11,7 @@ import { str } from "@/lib/db/codec";
 import { listFeed, listFrontComments, listLeaders } from "@/lib/db/queries";
 import { formatAlpha } from "@/lib/format";
 import { GALLERY_CASES, GALLERY_GROUPS, GROUP_LABELS, GROUP_ROUTES, type GalleryGroup } from "@/lib/og-gallery";
-import { clip, marketAlt, stanceAlt } from "@/lib/share";
+import { bookTitle, marketBlurb, marketTitle, stanceBlurb, stanceTitle, takeTitle } from "@/lib/share";
 import { commentPath } from "@/lib/thread";
 import { nowMs } from "@/lib/time";
 import { heading, kicker } from "@/lib/ui";
@@ -110,6 +110,7 @@ async function GalleryBody({ searchParams }: Pick<PageProps<"/og/gallery">, "sea
               note={c.note}
               route={c.route}
               title={c.title}
+              xTitle={c.xTitle}
               description={c.description}
               alt={c.alt}
               view={view}
@@ -215,6 +216,7 @@ function Card({
   note,
   route,
   title,
+  xTitle,
   description,
   alt,
   view,
@@ -225,6 +227,7 @@ function Card({
   note: string;
   route: string;
   title: string;
+  xTitle?: string;
   description?: string;
   alt?: string;
   view: View;
@@ -232,6 +235,7 @@ function Card({
 }) {
   const dark = view.bg === "dark";
   const x = view.frame === "x";
+  const pill = xTitle ?? title;
   return (
     <figure className={cx("m-0 min-w-0", CARD_WIDTH[view.size])}>
       <a href={src} target="_blank" className="block hover:no-underline">
@@ -254,7 +258,7 @@ function Card({
           />
           {x ? (
             <span className="absolute bottom-3 left-3 max-w-[calc(100%-24px)] truncate rounded-[4px] bg-[rgba(0,0,0,0.77)] px-2 py-1 font-sans text-[15px] leading-5 text-white">
-              {title}
+              {pill}
             </span>
           ) : null}
         </div>
@@ -271,6 +275,7 @@ function Card({
         <div className="mt-0.5 font-mono text-[12px] leading-[1.45] break-words">
           <div>{route}</div>
           <div>title · {title}</div>
+          {xTitle ? <div>x · {xTitle}</div> : null}
           {description ? <div>description · {description}</div> : null}
           {alt ? <div>alt · {alt}</div> : null}
         </div>
@@ -305,8 +310,8 @@ async function Live({ view, stamp }: { view: View; stamp: number }) {
           label={item.name}
           note={`live market · ${item.market.phase}`}
           route={`/s/${item.slug}`}
-          title={`${item.name} | Tradeviction`}
-          description={marketAlt(item, item.market.pulse, item.market.forming)}
+          title={marketTitle(item, item.market)}
+          description={marketBlurb(item.market)}
           alt="Tradeviction market"
           view={view}
           eager={i === 0}
@@ -320,8 +325,8 @@ async function Live({ view, stamp }: { view: View; stamp: number }) {
               label={`${side} ${lead.name}`}
               note="live intent"
               route={`/s/${lead.slug}/${side}`}
-              title={`${side} ${lead.name} | Tradeviction`}
-              description={stanceAlt(side, lead, lead.market.pulse)}
+              title={stanceTitle(side, lead, lead.market)}
+              description={stanceBlurb(side, lead.market)}
               alt="Tradeviction"
               view={view}
               eager={false}
@@ -335,7 +340,7 @@ async function Live({ view, stamp }: { view: View; stamp: number }) {
           label={user.username}
           note={`live book · alpha ${formatAlpha(user.alpha)}`}
           route={`/u/${user.username}`}
-          title={`${user.username} | Tradeviction`}
+          title={bookTitle(user.username, user.alpha, 1)}
           alt="Tradeviction book"
           view={view}
           eager={false}
@@ -348,7 +353,7 @@ async function Live({ view, stamp }: { view: View; stamp: number }) {
           label={party.name}
           note="live party"
           route={`/p/${party.slug}`}
-          title={`${party.name} | Tradeviction`}
+          title={party.name}
           alt="Tradeviction party"
           view={view}
           eager={false}
@@ -360,7 +365,7 @@ async function Live({ view, stamp }: { view: View; stamp: number }) {
           label={`join ${firstParty.name}`}
           note="live invite, same card as the party"
           route="/join/[code]"
-          title={`${firstParty.name} | Tradeviction`}
+          title={`Join ${firstParty.name} on Tradeviction`}
           alt="Join a Tradeviction party"
           view={view}
           eager={false}
@@ -373,7 +378,8 @@ async function Live({ view, stamp }: { view: View; stamp: number }) {
           label={c.username}
           note={`live thesis · ${c.position ? `${c.position.direction} ${c.startupName}` : `on ${c.startupName}`}`}
           route={commentPath(c.startupSlug, c.id)}
-          title={`${clip(c.text, 70)} | Tradeviction`}
+          title={takeTitle(c)}
+          xTitle={c.position ? `${c.username} is ${c.position.direction} ${c.startupName}` : `${c.username} on ${c.startupName}`}
           view={view}
           eager={false}
         />

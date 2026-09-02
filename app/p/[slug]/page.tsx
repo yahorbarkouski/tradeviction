@@ -7,7 +7,8 @@ import { ListSkeleton } from "@/components/Skeleton";
 import { isAdmin } from "@/lib/admin";
 import { getCurrentUser } from "@/lib/auth";
 import { cachedPartyBoard, cachedPartyBySlug, isPartyMember } from "@/lib/db/parties";
-import { partyAlt } from "@/lib/party";
+import { partyBlurb, partyTitle } from "@/lib/party";
+import { pageMeta } from "@/lib/share";
 import { nowMs } from "@/lib/time";
 import { heading } from "@/lib/ui";
 import type { Party, User } from "@/lib/types";
@@ -17,7 +18,10 @@ export async function generateMetadata({ params }: PageProps<"/p/[slug]">): Prom
   const party = await cachedPartyBySlug(slug);
   if (!party) return { title: "not found" };
   const rows = await cachedPartyBoard(party.id);
-  return { title: party.name, description: partyAlt(party.name, party.members, rows) };
+  return pageMeta({
+    title: partyTitle(party.name, party.members),
+    description: partyBlurb(party.name, party.members, rows),
+  });
 }
 
 export default function PartyPage({ params }: PageProps<"/p/[slug]">) {

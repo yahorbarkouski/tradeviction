@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { IBM_Plex_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { SiteHeader } from "@/components/SiteHeader";
+import { HOME_BLURB } from "@/lib/copy";
 import "./globals.css";
 
 const mono = IBM_Plex_Mono({
@@ -22,7 +23,7 @@ export const metadata: Metadata = {
     default: "Tradeviction",
     template: "%s | Tradeviction",
   },
-  description: "The market of record for expressed startup conviction.",
+  description: HOME_BLURB,
   openGraph: {
     type: "website",
     siteName: "Tradeviction",

@@ -7,7 +7,8 @@ import { MetricLabel } from "@/components/Metric";
 import { LineSkeleton } from "@/components/Skeleton";
 import { getCurrentUser } from "@/lib/auth";
 import { cachedPartyBoard, getPartyByCode, isPartyMember } from "@/lib/db/parties";
-import { invitePath, isInviteCode, partyAlt } from "@/lib/party";
+import { inviteBlurb, invitePath, inviteTitle, isInviteCode } from "@/lib/party";
+import { pageMeta } from "@/lib/share";
 import { heading, page } from "@/lib/ui";
 
 // The invite link is what gets pasted around, so its preview carries the party.
@@ -16,7 +17,11 @@ export async function generateMetadata({ params }: PageProps<"/join/[code]">): P
   const party = isInviteCode(code) ? await getPartyByCode(code) : null;
   if (!party) return { title: "join" };
   const rows = await cachedPartyBoard(party.id);
-  return { title: `Join ${party.name}`, description: partyAlt(party.name, party.members, rows) };
+  return pageMeta({
+    title: inviteTitle(party.name),
+    tab: `Join ${party.name}`,
+    description: inviteBlurb(party.name, party.members, rows),
+  });
 }
 
 export default function JoinPage({ params }: PageProps<"/join/[code]">) {

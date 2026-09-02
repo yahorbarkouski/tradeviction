@@ -40,8 +40,8 @@ export function PulseBoard({ slug, market }: { slug: string; market: Market }) {
   const moveTone =
     move === null || move === 0 ? "text-mute" : move > 0 ? "text-long" : "text-short";
   return (
-    <section className="my-5 border-y border-line py-4">
-      <MarketStatus market={market} />
+    <section className="my-5 mt-3 border-b border-line py-4">
+      {/* <MarketStatus market={market} /> */}
       <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
         <div>
           <div className={cx(label, "mb-2")}>

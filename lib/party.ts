@@ -1,5 +1,6 @@
 // Party rules shared by the server and the browser. Nothing here touches the
 // database or node APIs, so Client Components may import it.
+import { SITE_LINE } from "@/lib/copy";
 import { formatAlpha } from "@/lib/format";
 
 export const PARTY_NAME_MIN = 2;
@@ -46,4 +47,39 @@ export function partyAlt(
     .slice(0, 3)
     .map((row) => `${row.username} ${formatAlpha(row.alpha)}`);
   return ranked.length > 0 ? `${lead} · ${ranked.join(", ")}` : lead;
+}
+
+export function partyTitle(name: string, members: number): string {
+  return `${name} · party of ${members}`;
+}
+
+export function partyBlurb(
+  name: string,
+  members: number,
+  top: { username: string; alpha: number; played: boolean }[] = [],
+): string {
+  const ranked = top.filter((row) => row.played).slice(0, 3);
+  const first = ranked[0];
+  const rest = ranked.slice(1).map((row) => `${row.username} ${formatAlpha(row.alpha)}`);
+  const lead =
+    first === undefined
+      ? `${name} is a private leaderboard of ${members}. Nobody has played yet.`
+      : rest.length === 0
+        ? `${name} is a private leaderboard of ${members}. ${first.username} leads at ${formatAlpha(first.alpha)}.`
+        : `${name} is a private leaderboard of ${members}. ${first.username} leads at ${formatAlpha(first.alpha)}, then ${rest.join(" and ")}.`;
+  return `${lead} ${SITE_LINE}`;
+}
+
+export function inviteTitle(name: string): string {
+  return `Join ${name} on Tradeviction`;
+}
+
+export function inviteBlurb(
+  name: string,
+  members: number,
+  top: { username: string; alpha: number; played: boolean }[] = [],
+): string {
+  const leader = top.find((row) => row.played);
+  const who = leader ? ` ${leader.username} leads at ${formatAlpha(leader.alpha)}.` : "";
+  return `You're invited to ${name}, a private leaderboard of ${members}.${who} Call startups long or short and see if you can beat them.`;
 }

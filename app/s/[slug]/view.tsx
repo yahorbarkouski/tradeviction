@@ -1,24 +1,21 @@
-import { cacheLife, cacheTag } from "next/cache";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { CommentThread } from "@/components/CommentThread";
 import { CompanyHead } from "@/components/CompanyHead";
+import { MarketBoard } from "@/components/MarketBoard";
 import { MarksProvider } from "@/components/Marks";
 import { PositionForm, StanceLinks } from "@/components/PositionForm";
 import { HeadSkeleton, PositionSkeleton, ThreadSkeleton } from "@/components/Skeleton";
-import { PulseBoard } from "@/components/StanceSplit";
 import { getCurrentUser } from "@/lib/auth";
 import {
   cachedStartupBySlug,
   cachedThread,
   countDeployed,
   getBookLine,
-  getMarket,
   getTakeCommentId,
   movesLeft,
 } from "@/lib/db/queries";
 import { cachedNow } from "@/lib/clock";
-import { TAG, startupTag } from "@/lib/tags";
 import { nowMs } from "@/lib/time";
 import { commentPath, isThreadSide, isThreadSort } from "@/lib/thread";
 import { getViewerMarks } from "@/lib/viewer";
@@ -65,15 +62,6 @@ async function StartupHead({ params }: { params: Params }) {
       <MarketBoard startupId={startup.id} slug={startup.slug} />
     </>
   );
-}
-
-// Shared by every viewer; expired by any write to the world or this startup.
-async function MarketBoard({ startupId, slug }: { startupId: string; slug: string }) {
-  "use cache";
-  cacheLife("hours");
-  cacheTag(TAG.world, startupTag(startupId));
-  const market = await getMarket(startupId, nowMs());
-  return <PulseBoard slug={slug} market={market} />;
 }
 
 async function PositionSlot({ params }: { params: Params }) {

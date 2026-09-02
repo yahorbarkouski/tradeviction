@@ -26,7 +26,7 @@ import {
 import { formatAlpha, formatRank, formatWhen, stanceTone, stanceWord } from "@/lib/format";
 import { CONVICTION_CAP, FRESH_MS } from "@/lib/market";
 import { nowMs } from "@/lib/time";
-import { bookAlt, loadProfileBook } from "@/lib/share";
+import { bookBlurb, bookTitle, loadProfileBook, pageMeta } from "@/lib/share";
 import { xAvatarUrl } from "@/lib/x";
 import { heading, kicker } from "@/lib/ui";
 import { cx } from "@/lib/cx";
@@ -39,10 +39,11 @@ export async function generateMetadata({ params }: PageProps<"/u/[username]">): 
   const { username } = await params;
   const loaded = await loadProfileBook(username);
   if (!loaded) return { title: "not found" };
-  return {
-    title: loaded.user.username,
-    description: bookAlt(loaded.user.username, loaded.stats.alpha, loaded.long, loaded.short),
-  };
+  const rank = loaded.lines.length > 0 ? await alphaRank(loaded.user.id, nowMs()) : null;
+  return pageMeta({
+    title: bookTitle(loaded.user.username, loaded.stats.alpha, loaded.lines.length),
+    description: bookBlurb({ alpha: loaded.stats.alpha, rank, lines: loaded.lines }),
+  });
 }
 
 export default function ProfilePage({ params }: PageProps<"/u/[username]">) {

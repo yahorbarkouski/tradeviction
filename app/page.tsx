@@ -6,6 +6,15 @@ import { cachedFeed, cachedFrontPage } from "@/lib/db/queries";
 import { cachedNow } from "@/lib/clock";
 import { isSort } from "@/lib/types";
 import { getViewerMarks } from "@/lib/viewer";
+import type { Metadata } from "next";
+import { HOME_BLURB, TAGLINE } from "@/lib/copy";
+
+export const metadata: Metadata = {
+  title: { absolute: "Tradeviction" },
+  description: HOME_BLURB,
+  openGraph: { title: { absolute: TAGLINE }, description: HOME_BLURB },
+  twitter: { title: { absolute: TAGLINE }, description: HOME_BLURB },
+};
 
 function first(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
