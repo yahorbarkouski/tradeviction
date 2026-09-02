@@ -11,12 +11,16 @@ const LINKS = [
   { href: "/?sort=hot", label: "hot", prefetch: true },
   { href: "/?sort=new", label: "new", prefetch: true },
   { href: "/top", label: "top", prefetch: true },
+  { href: "/parties", label: "parties", prefetch: null },
   { href: "/about", label: "about", prefetch: null },
   { href: "/submit", label: "submit", prefetch: null },
 ] as const;
 
 function isActive(href: string, pathname: string, sort: string | null): boolean {
   if (href.startsWith("/?sort=")) return pathname === "/" && sort === href.slice("/?sort=".length);
+  if (href === "/parties") {
+    return pathname === "/parties" || pathname.startsWith("/p/") || pathname.startsWith("/join/");
+  }
   return pathname === href;
 }
 

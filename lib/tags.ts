@@ -11,10 +11,17 @@ export const TAG = {
   threads: "threads",
   // The leaderboard on /top.
   leaders: "leaders",
+  // Party rows: lookups by slug, and each member's list of parties.
+  parties: "parties",
   // Browser-only caches derived from the session cookie.
   session: "session",
 } as const;
 
 export function startupTag(startupId: string): string {
   return `startup:${startupId}`;
+}
+
+// One party: its row and its board.
+export function partyTag(partyId: string): string {
+  return `party:${partyId}`;
 }

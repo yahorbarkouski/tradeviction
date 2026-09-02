@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { MetricLabel, type MetricId } from "@/components/Metric";
 import { stanceTone } from "@/lib/format";
@@ -37,6 +38,11 @@ export default function AboutPage() {
         </p>
         <p>
           Explain your position with arguments to earn <Term id="karma" />.
+        </p>
+        <p>
+          Make a <Link href="/parties">party</Link> for your company or your group chat and share its
+          invite link. The party board ranks members by <Term id="alpha" /> and shows what each of them
+          is <Side side="long" /> and <Side side="short" />.
         </p>
         <p>Bet your beliefs before they become common knowledge.</p>
       </div>

@@ -210,7 +210,7 @@ export async function createUser(input: { username: string; passwordHash: string
   };
 }
 
-export const RATE_KINDS = ["register", "login", "submit", "comment", "vote", "book", "flag", "verify"] as const;
+export const RATE_KINDS = ["register", "login", "submit", "comment", "vote", "book", "flag", "verify", "party"] as const;
 export type RateKind = (typeof RATE_KINDS)[number];
 
 export async function logRate(input: { userId: string | null; ip: string; kind: RateKind }): Promise<void> {
@@ -581,6 +581,21 @@ export async function deleteUser(id: string): Promise<void> {
     await run("DELETE FROM positions WHERE user_id = ?", [id]);
     await run("DELETE FROM moves WHERE user_id = ?", [id]);
     await run("DELETE FROM rate_log WHERE user_id = ?", [id]);
+    // Parties they own pass to whoever joined next; one with nobody else goes too.
+    await run(
+      `UPDATE parties p SET owner_id = heir.user_id
+       FROM (
+         SELECT DISTINCT ON (party_id) party_id, user_id
+         FROM party_members
+         WHERE user_id <> ?
+         ORDER BY party_id, joined_at ASC
+       ) heir
+       WHERE p.owner_id = ? AND heir.party_id = p.id`,
+      [id, id],
+    );
+    await run("DELETE FROM party_members WHERE party_id IN (SELECT id FROM parties WHERE owner_id = ?)", [id]);
+    await run("DELETE FROM parties WHERE owner_id = ?", [id]);
+    await run("DELETE FROM party_members WHERE user_id = ?", [id]);
     await run("DELETE FROM users WHERE id = ?", [id]);
   });
 }
@@ -1609,6 +1624,28 @@ function alphaFromLots(world: World, userId: string, lots: Lot[]): number {
   return total;
 }
 
+// Votes by who received and who gave them, from rows of voter_id, author_id,
+// and created_at in time order.
+function indexVotes(rows: Record<string, unknown>[]): {
+  receivedBy: Map<string, VoteIn[]>;
+  givenBy: Map<string, VoteOut[]>;
+} {
+  const receivedBy = new Map<string, VoteIn[]>();
+  const givenBy = new Map<string, VoteOut[]>();
+  for (const row of rows) {
+    const voterId = str(row, "voter_id");
+    const authorId = str(row, "author_id");
+    const at = int(row, "created_at");
+    const received = receivedBy.get(authorId) ?? [];
+    received.push({ voterId, at });
+    receivedBy.set(authorId, received);
+    const given = givenBy.get(voterId) ?? [];
+    given.push({ authorId, at });
+    givenBy.set(voterId, given);
+  }
+  return { receivedBy, givenBy };
+}
+
 function rankLeaders(
   rows: { userId: string; username: string; alpha: number; karma: number }[],
   compare: (a: (typeof rows)[number], b: (typeof rows)[number]) => number,
@@ -1693,24 +1730,14 @@ export async function listLeaders(now = Date.now(), limit = PAGE_SIZE): Promise<
     list.push(lot);
     lotsByUser.set(lot.userId, list);
   }
-  const receivedBy = new Map<string, VoteIn[]>();
-  const givenBy = new Map<string, VoteOut[]>();
-  for (const row of await allRows(
-    `SELECT v.user_id AS voter_id, v.created_at, c.user_id AS author_id
-     FROM comment_votes v
-     JOIN comments c ON c.id = v.comment_id
-     ORDER BY v.created_at ASC`,
-  )) {
-    const voterId = str(row, "voter_id");
-    const authorId = str(row, "author_id");
-    const at = int(row, "created_at");
-    const received = receivedBy.get(authorId) ?? [];
-    received.push({ voterId, at });
-    receivedBy.set(authorId, received);
-    const given = givenBy.get(voterId) ?? [];
-    given.push({ authorId, at });
-    givenBy.set(voterId, given);
-  }
+  const { receivedBy, givenBy } = indexVotes(
+    await allRows(
+      `SELECT v.user_id AS voter_id, v.created_at, c.user_id AS author_id
+       FROM comment_votes v
+       JOIN comments c ON c.id = v.comment_id
+       ORDER BY v.created_at ASC`,
+    ),
+  );
   const scored = users.map((user) => {
     const lots = lotsByUser.get(user.id) ?? [];
     return {
@@ -1740,6 +1767,44 @@ export async function cachedLeaders(): Promise<Leaderboard> {
   cacheLife("hours");
   cacheTag(TAG.world, TAG.leaders);
   return listLeaders(Date.now());
+}
+
+export type PlayerScore = { alpha: number; karma: number; played: boolean };
+
+// Alpha and karma for a chosen set of users from one lots read and one votes
+// read, for boards that rank a group rather than the whole site.
+export async function scorePlayers(userIds: string[], now = Date.now()): Promise<Map<string, PlayerScore>> {
+  const scores = new Map<string, PlayerScore>();
+  if (userIds.length === 0) return scores;
+  const ph = userIds.map(() => "?").join(",");
+  const [world, lotRows, voteRows] = await Promise.all([
+    cachedWorld(now),
+    allRows(`SELECT * FROM lots WHERE user_id IN (${ph})`, userIds),
+    allRows(
+      `SELECT v.user_id AS voter_id, v.created_at, c.user_id AS author_id
+       FROM comment_votes v
+       JOIN comments c ON c.id = v.comment_id
+       WHERE c.user_id IN (${ph}) OR v.user_id IN (${ph})
+       ORDER BY v.created_at ASC`,
+      [...userIds, ...userIds],
+    ),
+  ]);
+  const lotsByUser = new Map<string, Lot[]>();
+  for (const lot of lotRows.map(parseLot)) {
+    const list = lotsByUser.get(lot.userId) ?? [];
+    list.push(lot);
+    lotsByUser.set(lot.userId, list);
+  }
+  const { receivedBy, givenBy } = indexVotes(voteRows);
+  for (const id of userIds) {
+    const lots = lotsByUser.get(id) ?? [];
+    scores.set(id, {
+      alpha: lots.length > 0 ? alphaFromLots(world, id, lots) : 0,
+      karma: scoreKarma(world, id, receivedBy.get(id) ?? [], givenBy.get(id) ?? []),
+      played: lots.length > 0,
+    });
+  }
+  return scores;
 }
 
 export async function getPlayerStats(userId: string, now = Date.now()): Promise<PlayerStats> {

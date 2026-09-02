@@ -25,6 +25,10 @@ Next.js on Vercel. Postgres on Neon. Auth is username plus password in a signed 
 
 Pages use Cache Components: every route ships a static shell, and whatever depends on the URL or the viewer streams into it. Shared reads (`cachedWorldData`, `cachedFrontPage`, `cachedThread`, `cachedFeed`, `cachedLeaders`, `cachedStartupBySlug`) carry cache tags from `lib/tags.ts`; every server action expires the tags its write touched with `updateTag`, so the re-render that ships with the action's response already shows the write. Viewer-specific state (votes, flags, standing, the header numbers) is read behind `use cache: private`, kept only in the browser, and overlaid on the shared lists client side. Votes, replies, and position changes render optimistically and are confirmed by the server's re-render. Links to feeds and the leaderboard prefetch their content; links into a startup prefetch it on hover.
 
+## Parties
+
+A party is a private board, like an Advent of Code leaderboard. Make one on `/parties`, share its invite link (`/join/<code>`, a 32-character secret behind a copy button), and everyone who joins sees the members ranked by Alpha with what each is long and short. Party and invite links unfurl with a card of the top five. The owner can replace the link or delete the party; an owner who leaves hands the party to whoever joined next, and the last member out takes it with them.
+
 ## Tests
 
 `npm test` runs the integration suite in `test/`. It starts a throwaway Postgres with Docker through testcontainers, applies the real schema and migrations, and drives the server actions, queries, and market engine against it; every table is truncated between tests. To reuse a database you already run, set `TEST_DATABASE_URL` (for example the compose one: `postgres://tradeviction:tradeviction@127.0.0.1:5432/tradeviction_test`). Never point it at real data.

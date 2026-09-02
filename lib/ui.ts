@@ -43,3 +43,7 @@ export const page = "pt-6";
 export const mono = "font-mono tabular-nums";
 
 export const statLine = "inline-flex flex-wrap items-center gap-x-[0.4em] leading-none";
+
+// A form button that reads as one more link in a " · " separated meta line.
+export const pipe =
+  "cursor-pointer border-0 bg-transparent p-0 font-sans text-sm text-mute hover:underline decoration-1 underline-offset-[0.12em]";

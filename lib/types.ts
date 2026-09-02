@@ -193,6 +193,40 @@ export type Leaderboard = {
   karma: Leader[];
 };
 
+// A private board, like an Advent of Code leaderboard: join by invite link,
+// see every member ranked with what they are long and short.
+export type Party = {
+  id: string;
+  slug: string;
+  name: string;
+  ownerId: string;
+  inviteCode: string;
+  createdAt: number;
+  members: number;
+};
+
+export type PartyBet = {
+  startupId: string;
+  slug: string;
+  name: string;
+  domain: string;
+  direction: Direction;
+  conviction: number;
+};
+
+export type PartyRow = {
+  userId: string;
+  username: string;
+  createdAt: number;
+  verified: boolean;
+  alpha: number;
+  karma: number;
+  // False until the member has staked or opened anything.
+  played: boolean;
+  bets: PartyBet[];
+  rank: number;
+};
+
 const DIRECTION_SET: ReadonlySet<string> = new Set(DIRECTIONS);
 const SORT_SET: ReadonlySet<string> = new Set(SORTS);
 const SOURCE_SET: ReadonlySet<string> = new Set(SOURCES);

@@ -145,6 +145,24 @@ CREATE TABLE IF NOT EXISTS rate_log (
 CREATE INDEX IF NOT EXISTS rate_log_user_kind ON rate_log(user_id, kind, created_at);
 CREATE INDEX IF NOT EXISTS rate_log_ip_kind ON rate_log(ip, kind, created_at);
 
+CREATE TABLE IF NOT EXISTS parties (
+  id TEXT PRIMARY KEY,
+  slug TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  owner_id TEXT NOT NULL REFERENCES users(id),
+  invite_code TEXT NOT NULL UNIQUE,
+  created_at BIGINT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS party_members (
+  party_id TEXT NOT NULL REFERENCES parties(id),
+  user_id TEXT NOT NULL REFERENCES users(id),
+  joined_at BIGINT NOT NULL,
+  PRIMARY KEY (party_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS party_members_user ON party_members(user_id, joined_at);
+
 CREATE TABLE IF NOT EXISTS meta (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL

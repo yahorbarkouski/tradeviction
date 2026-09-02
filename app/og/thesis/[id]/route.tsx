@@ -1,8 +1,8 @@
-import { HomeOg, ThesisOg, faviconSrc, ogImage } from "@/lib/og";
-import { getCommentById, getMarket, getStartupById } from "@/lib/db/queries";
+import { HomeOg, ThesisOg, avatarSrc, faviconSrc, ogImage } from "@/lib/og";
+import { getCommentById, getMarket, getStartupById, getUserById } from "@/lib/db/queries";
 import { thesisPulse } from "@/lib/share";
 import { nowMs } from "@/lib/time";
-
+import { xAvatarUrl } from "@/lib/x";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -10,8 +10,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (!comment) return ogImage(<HomeOg />);
   const startup = await getStartupById(comment.startupId);
   if (!startup) return ogImage(<HomeOg />);
-  const market = await getMarket(startup.id, nowMs());
-  const icon = await faviconSrc(startup.domain);
+  const [market, author] = await Promise.all([getMarket(startup.id, nowMs()), getUserById(comment.userId)]);
+  const [icon, avatar] = await Promise.all([
+    faviconSrc(startup.domain),
+    author?.xAvatar ? avatarSrc(xAvatarUrl(author.xAvatar)) : Promise.resolve(null),
+  ]);
   return ogImage(
     <ThesisOg
       startup={startup}
@@ -20,6 +23,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       pulse={await thesisPulse(comment, market.pulse)}
       side={comment.position?.direction ?? null}
       icon={icon}
+      avatar={avatar}
     />,
   );
 }

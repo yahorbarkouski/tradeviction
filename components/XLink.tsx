@@ -2,36 +2,13 @@
 
 import { useActionState, useState } from "react";
 import { xStartAction, xUnlinkAction, xVerifyAction } from "@/app/actions";
+import { copyText } from "@/lib/clipboard";
 import type { XChallenge } from "@/lib/types";
 
 const pipe =
   "cursor-pointer border-0 bg-transparent p-0 font-sans text-sm text-mute hover:underline decoration-1 underline-offset-[0.12em] disabled:cursor-default disabled:opacity-60";
 const field =
   "inline-block w-36 border border-line bg-transparent px-2 py-1 font-sans text-sm text-ink placeholder:text-mute/60";
-
-// Clipboard API first; the legacy selection copy covers browsers that refuse it.
-async function copyText(text: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    const area = document.createElement("textarea");
-    area.value = text;
-    area.setAttribute("readonly", "");
-    area.style.position = "fixed";
-    area.style.opacity = "0";
-    document.body.appendChild(area);
-    area.select();
-    let done = false;
-    try {
-      done = document.execCommand("copy");
-    } catch {
-      done = false;
-    }
-    area.remove();
-    return done;
-  }
-}
 
 // The code, as a button that puts itself on the clipboard.
 function CopyCode({ code }: { code: string }) {

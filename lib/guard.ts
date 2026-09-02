@@ -23,6 +23,9 @@ const VERIFY_PER_USER_HOUR = 10;
 const VERIFY_PER_IP_HOUR = 20;
 const VERIFY_SITE_HOUR = 120;
 
+// Parties made or joined per account per day.
+const PARTIES_PER_DAY = 20;
+
 function waitText(ms: number): string {
   const seconds = Math.max(1, Math.ceil(ms / 1000));
   if (seconds < 90) return `Retry in ${seconds} seconds.`;
@@ -115,6 +118,13 @@ export async function assertWrite(kind: RateKind, user: RateActor | null, ip?: s
     }
     if ((await countRateAll("verify", now - HOUR)) >= VERIFY_SITE_HOUR) {
       throw new GuardError("X verification is busy right now. Try again later.");
+    }
+    return from;
+  }
+  if (kind === "party") {
+    gapFromLast(await lastRate({ userId: user.id, kind: "party" }), 5_000, now);
+    if ((await countRate({ userId: user.id, kind: "party", since: now - DAY_MS })) >= PARTIES_PER_DAY) {
+      throw new GuardError("Party limit for today. Try again tomorrow.");
     }
     return from;
   }

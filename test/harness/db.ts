@@ -10,6 +10,8 @@ const TABLES = [
   "positions",
   "moves",
   "rate_log",
+  "party_members",
+  "parties",
   "startups",
   "users",
 ];
