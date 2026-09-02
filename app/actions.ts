@@ -9,8 +9,10 @@ import {
   BookError,
   XLinkError,
   applyBookChange,
+  applyBookChanges,
   createUser,
   deleteCommentTree,
+  deleteOwnComment,
   deleteStartup,
   deleteUser,
   getCommentById,
@@ -23,6 +25,7 @@ import {
   insertReply,
   insertStartup,
   linkX,
+  listHeld,
   setMuted,
   setShowDead,
   setTrusted,
@@ -45,6 +48,7 @@ import {
   leaveParty,
   rotateInvite,
 } from "@/lib/db/parties";
+import { parseBookChanges, type BookChange } from "@/lib/book";
 import { NOTE_MAX, PASSWORD_MAX, PASSWORD_MIN, parseNote, parseUsername } from "@/lib/slug";
 import { PARTY_NAME_MAX, PARTY_NAME_MIN, invitePath, isInviteCode, parsePartyName } from "@/lib/party";
 import { identityFromUrl } from "@/lib/domain";
@@ -270,6 +274,42 @@ export async function closeAction(formData: FormData): Promise<void> {
   await bookAction(null, formData);
 }
 
+// The Book editor on a profile commits many position changes at once. They
+// share one rate-log entry and one transaction: all of them land, or none.
+export async function rebalanceAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await readCurrentUser();
+  if (!user) redirect("/login");
+  if (honeypotFilled(formData)) redirect(`/u/${user.username}`);
+  const parsed = parseBookChanges(String(formData.get("changes") ?? ""));
+  if (!parsed.ok) return { error: parsed.error };
+  const changes: BookChange[] = [];
+  for (const change of parsed.changes) {
+    if (change.close) {
+      changes.push({ ...change, note: "" });
+      continue;
+    }
+    const note = parseNote(change.note);
+    if (note === null) return { error: `Take should be ${NOTE_MAX} characters or fewer.` };
+    changes.push({ ...change, note });
+  }
+  // Only takes that are new or rewritten go through moderation.
+  const held = await listHeld(user.id);
+  const dirty = await rejectDirty(
+    changes
+      .filter((change) => !change.close && change.note !== (held.get(change.startupId)?.note ?? ""))
+      .map((change) => change.note),
+  );
+  if (dirty) return dirty;
+  try {
+    await guarded("book", user, () => applyBookChanges({ userId: user.id, changes }));
+  } catch (error) {
+    if (error instanceof BookError || error instanceof GuardError) return { error: error.message };
+    return { error: "Could not update the Book." };
+  }
+  expire(TAG.world, TAG.front, TAG.leaders, TAG.session, ...changes.map((change) => startupTag(change.startupId)));
+  return null;
+}
+
 export async function replyAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const parentId = String(formData.get("parentId") ?? "");
   const [user, parent] = await Promise.all([readCurrentUser(), getCommentById(parentId)]);
@@ -439,6 +479,22 @@ export async function adminDeleteCommentAction(formData: FormData): Promise<void
   expire(TAG.world, TAG.leaders);
   const dest = nextPath(formData, startup ? `/s/${startup.slug}` : "/");
   if (startup && dest.includes(`/c/${commentId}`)) redirect(`/s/${startup.slug}`);
+  redirect(dest);
+}
+
+export async function deleteCommentAction(formData: FormData): Promise<void> {
+  const user = await readCurrentUser();
+  const commentId = String(formData.get("commentId") ?? "");
+  const comment = await getCommentById(commentId);
+  const startup = comment ? await getStartupById(comment.startupId) : null;
+  const home = startup ? `/s/${startup.slug}` : "/";
+  if (!user) redirect(`/login?next=${encodeURIComponent(home)}`);
+  const startupId = await deleteOwnComment(user.id, commentId);
+  if (startupId === null) redirect(nextPath(formData, home));
+  expireComment(startupId);
+  expire(TAG.world, TAG.leaders);
+  const dest = nextPath(formData, home);
+  if (dest.includes(`/c/${commentId}`)) redirect(home);
   redirect(dest);
 }
 

@@ -117,7 +117,13 @@ function Row({
             next={href}
             signedIn={marks !== null}
           />
-          <AdminCommentMeta commentId={item.id} admin={marks?.admin ?? false} next="/" onEdit={() => setEditing(true)} />
+          <AdminCommentMeta
+            commentId={item.id}
+            admin={marks?.admin ?? false}
+            own={own}
+            next="/"
+            onEdit={() => setEditing(true)}
+          />
         </div>
       </div>
     </article>

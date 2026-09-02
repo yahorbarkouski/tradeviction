@@ -33,6 +33,7 @@ import {
   utcDay,
 } from "@/lib/market";
 import { RECEIPT_ALPHA } from "@/lib/game";
+import { STALE_BOOK, planChanges, sameHeld, type BookChange, type HeldNote } from "@/lib/book";
 import { sortFeed } from "@/lib/ranking";
 import { slugify } from "@/lib/slug";
 import { TAG, startupTag } from "@/lib/tags";
@@ -435,6 +436,18 @@ export async function updateComment(id: string, text: string): Promise<Comment |
   return await getCommentById(id);
 }
 
+// A take's text also sits on the position and on the events that carried it,
+// which the profile and the moves log show. Deleting the take clears those too.
+async function eraseTakeText(comment: Comment): Promise<void> {
+  if (comment.parentId !== null || comment.positionId === null) return;
+  await run("UPDATE positions SET note = '' WHERE id = ? AND note = ?", [comment.positionId, comment.text]);
+  await run("UPDATE events SET note = NULL WHERE user_id = ? AND startup_id = ? AND note = ?", [
+    comment.userId,
+    comment.startupId,
+    comment.text,
+  ]);
+}
+
 export async function deleteCommentTree(id: string): Promise<string | null> {
   return await withTransaction(async () => {
     const root = await getCommentById(id);
@@ -448,8 +461,23 @@ export async function deleteCommentTree(id: string): Promise<string | null> {
        SELECT id FROM tree`,
       [id],
     );
+    await eraseTakeText(root);
     await eraseCommentRows(rows.map((row) => str(row, "id")));
     return root.startupId;
+  });
+}
+
+// An author removes one comment of their own. Replies by other people stay,
+// attached to the next living ancestor, the same way deleteUser leaves them.
+// Returns the startup id, or null when the comment is missing or not theirs.
+export async function deleteOwnComment(userId: string, id: string): Promise<string | null> {
+  return await withTransaction(async () => {
+    const comment = await getCommentById(id);
+    if (!comment || comment.userId !== userId) return null;
+    await run("UPDATE comments SET parent_id = ? WHERE parent_id = ?", [comment.parentId, id]);
+    await eraseTakeText(comment);
+    await eraseCommentRows([id]);
+    return comment.startupId;
   });
 }
 
@@ -976,167 +1004,156 @@ async function closeAllLots(positionId: string, at: number): Promise<void> {
   for (const lot of lots) await realizeLot(world, lot, lot.conviction, at);
 }
 
-export async function applyBookChange(input: {
+type BookInput = {
   startupId: string;
   userId: string;
   direction: Direction;
   conviction: number;
   note: string;
   close?: boolean;
-}): Promise<EventKind> {
-  const at = Date.now();
-  if (!Number.isInteger(input.conviction) || input.conviction < 0 || input.conviction > CONVICTION_CAP) {
+};
+
+function assertConviction(conviction: number): void {
+  if (!Number.isInteger(conviction) || conviction < 0 || conviction > CONVICTION_CAP) {
     throw new BookError("Conviction must be an integer from 0 to 100.");
   }
+}
+
+export async function applyBookChange(input: BookInput): Promise<EventKind> {
+  const at = Date.now();
+  assertConviction(input.conviction);
+  return await withTransaction(() => applyOne(input, at));
+}
+
+// The open positions a user holds, by startup.
+export async function listHeld(userId: string): Promise<Map<string, HeldNote>> {
+  const held = new Map<string, HeldNote>();
+  for (const row of await allRows(
+    "SELECT startup_id, direction, conviction, note FROM positions WHERE user_id = ? AND closed_at IS NULL",
+    [userId],
+  )) {
+    const direction = str(row, "direction");
+    if (!isDirection(direction)) continue;
+    held.set(str(row, "startup_id"), { direction, conviction: int(row, "conviction"), note: str(row, "note") });
+  }
+  return held;
+}
+
+// Several changes as one commit. Every change is checked against the Book as
+// it is now, the cap and the day's moves are checked for the whole batch, and
+// then the changes land in an order that frees Conviction before spending it.
+// Nothing is written when any of that fails.
+export async function applyBookChanges(input: { userId: string; changes: BookChange[] }): Promise<EventKind[]> {
+  const at = Date.now();
+  for (const change of input.changes) assertConviction(change.conviction);
   return await withTransaction(async () => {
-    const current = await getActivePosition(input.startupId, input.userId);
-    if (input.close) {
-      if (!current) throw new BookError("No open position to close.");
-      await closeAllLots(current.id, at);
-      await run("UPDATE positions SET closed_at = ?, updated_at = ? WHERE id = ?", [at, at, current.id]);
-      const mark = await snapshot(input.startupId, at);
-      await insertEvent({
-        userId: input.userId,
-        startupId: input.startupId,
-        kind: "close",
-        direction: current.direction,
-        conviction: current.conviction,
-        pulse: mark.pulse,
-        depth: mark.depth,
-        note: current.note,
-        at,
-      });
-      return "close";
+    const held = await listHeld(input.userId);
+    for (const change of input.changes) {
+      if (!sameHeld(held.get(change.startupId) ?? null, change.from)) throw new BookError(STALE_BOOK);
     }
-
-    const others = await deployedExcept(input.userId, current?.id ?? null);
-    if (others + input.conviction > CONVICTION_CAP) {
-      throw new BookError(`Only ${CONVICTION_CAP - others} Conviction left in your Book.`);
+    const startups = await getStartupsByIds(input.changes.map((change) => change.startupId));
+    for (const change of input.changes) {
+      if (!startups.has(change.startupId)) throw new BookError("Company not found.");
     }
-
-    if (!current) {
-      await consumeMove(input.userId, at);
-      const id = randomUUID();
-      await run(
-        `INSERT INTO positions
-          (id, user_id, startup_id, direction, conviction, note, opened_at, updated_at, closed_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
-        [id, input.userId, input.startupId, input.direction, input.conviction, input.note, at, at],
-      );
-      await addLot({
-        userId: input.userId,
-        startupId: input.startupId,
-        positionId: id,
-        direction: input.direction,
-        conviction: input.conviction,
-        at,
-      });
-      const mark = await snapshot(input.startupId, at);
-      await insertThesisComment({
-        startupId: input.startupId,
-        userId: input.userId,
-        positionId: id,
-        text: input.note,
-        at,
-      });
-      await insertEvent({
-        userId: input.userId,
-        startupId: input.startupId,
-        kind: "open",
-        direction: input.direction,
-        conviction: input.conviction,
-        pulse: mark.pulse,
-        depth: mark.depth,
-        note: input.note,
-        at,
-      });
-      return "open";
+    const plan = planChanges(held, input.changes);
+    if (plan.staged.length === 0) throw new BookError("Nothing to change.");
+    if (plan.deployed > CONVICTION_CAP) {
+      throw new BookError(`That adds up to ${plan.deployed} Conviction. Your Book holds ${CONVICTION_CAP}.`);
     }
-
-    if (current.direction !== input.direction) {
-      await consumeMove(input.userId, at);
-      await closeAllLots(current.id, at);
-      await run(
-        "UPDATE positions SET direction = ?, conviction = ?, note = ?, updated_at = ? WHERE id = ?",
-        [input.direction, input.conviction, input.note, at, current.id],
-      );
-      await addLot({
-        userId: input.userId,
-        startupId: input.startupId,
-        positionId: current.id,
-        direction: input.direction,
-        conviction: input.conviction,
-        at,
-      });
-      const mark = await snapshot(input.startupId, at);
-      await insertThesisComment({
-        startupId: input.startupId,
-        userId: input.userId,
-        positionId: current.id,
-        text: input.note,
-        at,
-      });
-      await insertEvent({
-        userId: input.userId,
-        startupId: input.startupId,
-        kind: "flip",
-        direction: input.direction,
-        conviction: input.conviction,
-        pulse: mark.pulse,
-        depth: mark.depth,
-        note: input.note,
-        at,
-      });
-      return "flip";
+    const left = await movesLeft(input.userId, at);
+    if (plan.moves > left) {
+      throw new BookError(`Needs ${plan.moves} ${plan.moves === 1 ? "move" : "moves"}. ${left} left today.`);
     }
-
-    if (current.conviction !== input.conviction) {
-      const kind: EventKind = input.conviction > current.conviction ? "increase" : "decrease";
-      if (kind === "increase") await consumeMove(input.userId, at);
-      if (kind === "increase") {
-        await addLot({
-          userId: input.userId,
-          startupId: input.startupId,
-          positionId: current.id,
-          direction: current.direction,
-          conviction: input.conviction - current.conviction,
-          at,
-        });
-      } else {
-        await decreaseLots(current.id, current.conviction - input.conviction, at);
-      }
-      await run("UPDATE positions SET conviction = ?, note = ?, updated_at = ? WHERE id = ?", [
-        input.conviction,
-        input.note,
-        at,
-        current.id,
-      ]);
-      const mark = await snapshot(input.startupId, at);
-      if (input.note !== current.note) {
-        await insertThesisComment({
-          startupId: input.startupId,
-          userId: input.userId,
-          positionId: current.id,
-          text: input.note,
-          at,
-        });
-      }
-      await insertEvent({
-        userId: input.userId,
-        startupId: input.startupId,
-        kind,
-        direction: current.direction,
-        conviction: input.conviction,
-        pulse: mark.pulse,
-        depth: mark.depth,
-        note: input.note,
-        at,
-      });
-      return kind;
+    const kinds: EventKind[] = [];
+    for (const { change } of plan.staged) {
+      kinds.push(await applyOne({ ...change, userId: input.userId }, at));
     }
+    return kinds;
+  });
+}
 
-    if (input.note === current.note) throw new BookError("Nothing to change.");
-    await run("UPDATE positions SET note = ?, updated_at = ? WHERE id = ?", [input.note, at, current.id]);
+// One position change inside the caller's transaction, at the caller's clock.
+async function applyOne(input: BookInput, at: number): Promise<EventKind> {
+  const current = await getActivePosition(input.startupId, input.userId);
+  if (input.close) {
+    if (!current) throw new BookError("No open position to close.");
+    await closeAllLots(current.id, at);
+    await run("UPDATE positions SET closed_at = ?, updated_at = ? WHERE id = ?", [at, at, current.id]);
+    const mark = await snapshot(input.startupId, at);
+    await insertEvent({
+      userId: input.userId,
+      startupId: input.startupId,
+      kind: "close",
+      direction: current.direction,
+      conviction: current.conviction,
+      pulse: mark.pulse,
+      depth: mark.depth,
+      note: current.note,
+      at,
+    });
+    return "close";
+  }
+
+  const others = await deployedExcept(input.userId, current?.id ?? null);
+  if (others + input.conviction > CONVICTION_CAP) {
+    throw new BookError(`Only ${CONVICTION_CAP - others} Conviction left in your Book.`);
+  }
+
+  if (!current) {
+    await consumeMove(input.userId, at);
+    const id = randomUUID();
+    await run(
+      `INSERT INTO positions
+        (id, user_id, startup_id, direction, conviction, note, opened_at, updated_at, closed_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
+      [id, input.userId, input.startupId, input.direction, input.conviction, input.note, at, at],
+    );
+    await addLot({
+      userId: input.userId,
+      startupId: input.startupId,
+      positionId: id,
+      direction: input.direction,
+      conviction: input.conviction,
+      at,
+    });
+    const mark = await snapshot(input.startupId, at);
+    await insertThesisComment({
+      startupId: input.startupId,
+      userId: input.userId,
+      positionId: id,
+      text: input.note,
+      at,
+    });
+    await insertEvent({
+      userId: input.userId,
+      startupId: input.startupId,
+      kind: "open",
+      direction: input.direction,
+      conviction: input.conviction,
+      pulse: mark.pulse,
+      depth: mark.depth,
+      note: input.note,
+      at,
+    });
+    return "open";
+  }
+
+  if (current.direction !== input.direction) {
+    await consumeMove(input.userId, at);
+    await closeAllLots(current.id, at);
+    await run(
+      "UPDATE positions SET direction = ?, conviction = ?, note = ?, updated_at = ? WHERE id = ?",
+      [input.direction, input.conviction, input.note, at, current.id],
+    );
+    await addLot({
+      userId: input.userId,
+      startupId: input.startupId,
+      positionId: current.id,
+      direction: input.direction,
+      conviction: input.conviction,
+      at,
+    });
+    const mark = await snapshot(input.startupId, at);
     await insertThesisComment({
       startupId: input.startupId,
       userId: input.userId,
@@ -1144,20 +1161,87 @@ export async function applyBookChange(input: {
       text: input.note,
       at,
     });
-    const mark = await snapshot(input.startupId, at);
     await insertEvent({
       userId: input.userId,
       startupId: input.startupId,
-      kind: "thesis",
-      direction: current.direction,
-      conviction: current.conviction,
+      kind: "flip",
+      direction: input.direction,
+      conviction: input.conviction,
       pulse: mark.pulse,
       depth: mark.depth,
       note: input.note,
       at,
     });
-    return "thesis";
+    return "flip";
+  }
+
+  if (current.conviction !== input.conviction) {
+    const kind: EventKind = input.conviction > current.conviction ? "increase" : "decrease";
+    if (kind === "increase") await consumeMove(input.userId, at);
+    if (kind === "increase") {
+      await addLot({
+        userId: input.userId,
+        startupId: input.startupId,
+        positionId: current.id,
+        direction: current.direction,
+        conviction: input.conviction - current.conviction,
+        at,
+      });
+    } else {
+      await decreaseLots(current.id, current.conviction - input.conviction, at);
+    }
+    await run("UPDATE positions SET conviction = ?, note = ?, updated_at = ? WHERE id = ?", [
+      input.conviction,
+      input.note,
+      at,
+      current.id,
+    ]);
+    const mark = await snapshot(input.startupId, at);
+    if (input.note !== current.note) {
+      await insertThesisComment({
+        startupId: input.startupId,
+        userId: input.userId,
+        positionId: current.id,
+        text: input.note,
+        at,
+      });
+    }
+    await insertEvent({
+      userId: input.userId,
+      startupId: input.startupId,
+      kind,
+      direction: current.direction,
+      conviction: input.conviction,
+      pulse: mark.pulse,
+      depth: mark.depth,
+      note: input.note,
+      at,
+    });
+    return kind;
+  }
+
+  if (input.note === current.note) throw new BookError("Nothing to change.");
+  await run("UPDATE positions SET note = ?, updated_at = ? WHERE id = ?", [input.note, at, current.id]);
+  await insertThesisComment({
+    startupId: input.startupId,
+    userId: input.userId,
+    positionId: current.id,
+    text: input.note,
+    at,
   });
+  const mark = await snapshot(input.startupId, at);
+  await insertEvent({
+    userId: input.userId,
+    startupId: input.startupId,
+    kind: "thesis",
+    direction: current.direction,
+    conviction: current.conviction,
+    pulse: mark.pulse,
+    depth: mark.depth,
+    note: input.note,
+    at,
+  });
+  return "thesis";
 }
 
 export async function getCommentById(
@@ -1423,6 +1507,7 @@ export async function lookupStartups(q: string): Promise<LookupHit[]> {
   const seen = new Set<string>();
   if (exact) {
     hits.push({
+      id: exact.id,
       slug: exact.slug,
       name: exact.name,
       description: exact.description,
@@ -1436,6 +1521,7 @@ export async function lookupStartups(q: string): Promise<LookupHit[]> {
     const startup = parseStartup(row);
     if (seen.has(startup.id)) continue;
     hits.push({
+      id: startup.id,
       slug: startup.slug,
       name: startup.name,
       description: startup.description,

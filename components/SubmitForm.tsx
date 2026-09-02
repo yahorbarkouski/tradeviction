@@ -7,7 +7,7 @@ import { Favicon } from "@/components/Favicon";
 import { Honeypot } from "@/components/Honeypot";
 import { cx } from "@/lib/cx";
 import { faviconDomain } from "@/lib/domain";
-import type { LookupHit } from "@/lib/types";
+import { isLookupHit, type LookupHit } from "@/lib/types";
 import { btn, fieldHead, input } from "@/lib/ui";
 
 export function SubmitForm() {
@@ -29,7 +29,7 @@ export function SubmitForm() {
             "hits" in body &&
             Array.isArray(body.hits)
           ) {
-            setResult({ q, hits: body.hits.filter(isHit) });
+            setResult({ q, hits: body.hits.filter(isLookupHit) });
           }
         })
         .catch(() => {
@@ -131,15 +131,4 @@ export function SubmitForm() {
       )}
     </form>
   );
-}
-
-function isHit(value: unknown): value is LookupHit {
-  if (typeof value !== "object" || value === null) return false;
-  if (!("slug" in value) || typeof value.slug !== "string") return false;
-  if (!("name" in value) || typeof value.name !== "string") return false;
-  if (!("description" in value) || typeof value.description !== "string") return false;
-  if (!("domain" in value) || typeof value.domain !== "string") return false;
-  if (!("url" in value) || typeof value.url !== "string") return false;
-  if (!("exact" in value) || typeof value.exact !== "boolean") return false;
-  return true;
 }

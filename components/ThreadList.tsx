@@ -175,7 +175,13 @@ function Body({
             next={dest}
             signedIn={marks !== null}
           />
-          <AdminCommentMeta commentId={node.id} admin={marks?.admin ?? false} next={href} onEdit={() => setEditing(true)} />
+          <AdminCommentMeta
+            commentId={node.id}
+            admin={marks?.admin ?? false}
+            own={own}
+            next={href}
+            onEdit={() => setEditing(true)}
+          />
         </div>
       </div>
       {editing ? (

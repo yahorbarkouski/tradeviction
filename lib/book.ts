@@ -84,7 +84,7 @@ export function parseBookChanges(raw: string): ParsedChanges {
   for (const item of body) {
     const change = parseChange(item);
     if (!change) return { ok: false, error: UNREADABLE };
-    if (seen.has(change.startupId)) return { ok: false, error: "One change per startup." };
+    if (seen.has(change.startupId)) return { ok: false, error: "One change per company." };
     seen.add(change.startupId);
     changes.push(change);
   }

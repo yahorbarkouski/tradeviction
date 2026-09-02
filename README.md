@@ -29,6 +29,10 @@ Pages use Cache Components: every route ships a static shell, and whatever depen
 
 A party is a private board, like an Advent of Code leaderboard. Make one on `/parties`, share its invite link (`/join/<code>`, a 32-character secret behind a copy button), and everyone who joins sees the members ranked by Alpha with what each is long and short. Party and invite links unfurl with a card of the top five. The owner can replace the link or delete the party; an owner who leaves hands the party to whoever joined next, and the last member out takes it with them.
 
+## Book
+
+Your own profile is where the portfolio gets built. Every open position is a row with its side and Conviction as live controls, a bar shows how the hundred is spread, and a search box adds companies from the catalog, with the hottest boards offered before you type. Edits stage in the browser: a change list spells out what each one does and whether it spends a move, and one Commit (or Cmd+Enter) sends them all as a single server action. The batch is checked as a whole against the cap and the day's moves, then lands in one transaction that frees Conviction before spending it, so shifting 60 from one company to another is one step. Any failure, including a page whose view of the Book is older than the database, leaves the Book untouched.
+
 ## Tests
 
 `npm test` runs the integration suite in `test/`. It starts a throwaway Postgres with Docker through testcontainers, applies the real schema and migrations, and drives the server actions, queries, and market engine against it; every table is truncated between tests. To reuse a database you already run, set `TEST_DATABASE_URL` (for example the compose one: `postgres://tradeviction:tradeviction@127.0.0.1:5432/tradeviction_test`). Never point it at real data.

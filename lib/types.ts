@@ -257,3 +257,18 @@ export function isSource(value: string): value is Source {
 export function isEventKind(value: string): value is EventKind {
   return EVENT_SET.has(value);
 }
+
+// A row from /api/lookup, as the browser sees it.
+export function isLookupHit(value: unknown): value is LookupHit {
+  if (typeof value !== "object" || value === null) return false;
+  const hit = value as Record<string, unknown>;
+  return (
+    typeof hit.id === "string" &&
+    typeof hit.slug === "string" &&
+    typeof hit.name === "string" &&
+    typeof hit.description === "string" &&
+    typeof hit.domain === "string" &&
+    typeof hit.url === "string" &&
+    typeof hit.exact === "boolean"
+  );
+}

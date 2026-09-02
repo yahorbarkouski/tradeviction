@@ -3,9 +3,10 @@ import { BadgeCheck } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { adminMuteAction, adminTrustAction, closeAction, logoutAction, showDeadAction } from "@/app/actions";
-import { ClosePositionForm } from "@/components/PositionForm";
+import { adminMuteAction, adminTrustAction, logoutAction, showDeadAction } from "@/app/actions";
+import { BookEditor } from "@/components/BookEditor";
 import { Favicon } from "@/components/Favicon";
+import { LineStats } from "@/components/LineStats";
 import { MetricLabel, MetricValue } from "@/components/Metric";
 import { ListSkeleton } from "@/components/Skeleton";
 import { XLink } from "@/components/XLink";
@@ -13,12 +14,14 @@ import { getCurrentUser } from "@/lib/auth";
 import { isAdmin } from "@/lib/admin";
 import {
   alphaRank,
+  cachedFeed,
   getPlayerStats,
   getUserByUsername,
   getXChallenge,
   listIpSiblings,
   listUserBook,
   listUserReceipts,
+  movesLeft,
 } from "@/lib/db/queries";
 import { formatAlpha, formatRank, formatWhen, stanceTone, stanceWord } from "@/lib/format";
 import { CONVICTION_CAP, FRESH_MS } from "@/lib/market";
@@ -27,6 +30,7 @@ import { bookAlt, loadProfileBook } from "@/lib/share";
 import { xAvatarUrl } from "@/lib/x";
 import { heading, kicker } from "@/lib/ui";
 import { cx } from "@/lib/cx";
+import type { BookLine, StartupPick } from "@/lib/types";
 
 const pipe =
   "cursor-pointer border-0 bg-transparent p-0 font-sans text-sm text-mute hover:underline decoration-1 underline-offset-[0.12em]";
@@ -55,13 +59,15 @@ async function ProfileBody({ params }: Pick<PageProps<"/u/[username]">, "params"
   if (!user) notFound();
   const now = nowMs();
   const own = viewer?.id === user.id;
-  const [stats, book, receipts, rank, siblings, challenge] = await Promise.all([
+  const [stats, book, receipts, rank, siblings, challenge, moves, picks] = await Promise.all([
     getPlayerStats(user.id, now),
     listUserBook(user.id, now),
     listUserReceipts(user.id),
     alphaRank(user.id, now),
     isAdmin(viewer) ? listIpSiblings(user.id) : Promise.resolve([] as string[]),
     own ? getXChallenge(user.id) : Promise.resolve(null),
+    own ? movesLeft(user.id, now) : Promise.resolve(0),
+    own ? hotPicks() : Promise.resolve([] as StartupPick[]),
   ]);
   const longs = book.filter((line) => line.position.direction === "long");
   const shorts = book.filter((line) => line.position.direction === "short");
@@ -188,10 +194,17 @@ async function ProfileBody({ params }: Pick<PageProps<"/u/[username]">, "params"
       </header>
 
       <div>
-        <h2 className={cx(kicker, "mt-5 mb-1.5 text-long")}>long</h2>
-        <BookSide lines={longs} own={own} kind="long" />
-        <h2 className={cx(kicker, "mt-5 mb-1.5 text-short")}>short</h2>
-        <BookSide lines={shorts} own={own} kind="short" />
+        {own ? (
+          // A saved commit remounts the editor with the new Book as its baseline.
+          <BookEditor key={bookKey(book)} lines={book} movesLeft={moves} picks={picks} />
+        ) : (
+          <>
+            <h2 className={cx(kicker, "mt-5 mb-1.5 text-long")}>long</h2>
+            <BookSide lines={longs} kind="long" />
+            <h2 className={cx(kicker, "mt-5 mb-1.5 text-short")}>short</h2>
+            <BookSide lines={shorts} kind="short" />
+          </>
+        )}
         {receipts.length > 0 ? (
           <>
             <h2 className={cx(kicker, "mt-5 mb-1.5")}>Receipts</h2>
@@ -228,21 +241,30 @@ async function ProfileBody({ params }: Pick<PageProps<"/u/[username]">, "params"
   );
 }
 
-function BookSide({
-  lines,
-  own,
-  kind,
-}: {
-  lines: Awaited<ReturnType<typeof listUserBook>>;
-  own: boolean;
-  kind: "long" | "short";
-}) {
+// What the Book editor suggests: the hottest boards right now.
+async function hotPicks(): Promise<StartupPick[]> {
+  const { items } = await cachedFeed("hot", 1);
+  return items.slice(0, 12).map((item) => ({
+    id: item.id,
+    slug: item.slug,
+    name: item.name,
+    domain: item.domain,
+    description: item.description,
+    pulse: item.market.pulse,
+  }));
+}
+
+function bookKey(book: BookLine[]): string {
+  return `book:${book.map((line) => `${line.position.id}:${line.position.updatedAt}`).join("|")}`;
+}
+
+function BookSide({ lines, kind }: { lines: BookLine[]; kind: "long" | "short" }) {
   if (lines.length === 0) return <p className="text-mute">none</p>;
   return (
     <ul className="m-0 list-none p-0">
       {lines.map((line) => (
         <li className="pt-0.5 pb-1.5" key={line.position.id}>
-          <div className="grid grid-cols-[1.25rem_minmax(0,1fr)_auto] items-start gap-x-1.5">
+          <div className="grid grid-cols-[1.25rem_minmax(0,1fr)] items-start gap-x-1.5">
             <Favicon domain={line.startup.domain} name={line.startup.name} size={20} />
             <div className="min-w-0">
               <div>
@@ -253,31 +275,12 @@ function BookSide({
                 </span>
               </div>
               <div className="text-sm text-mute">
-                {line.entryPulse}→{line.pulse}
-                {line.entryDepth > 0 ? ` · d${line.entryDepth}` : ""}
-                {" · "}
-                <span className={line.liveAlpha >= 0 ? "text-long" : "text-short"}>
-                  {formatAlpha(line.liveAlpha)}
-                </span>
-                {line.discoveryAlpha !== 0 ? (
-                  <span className="text-mute"> · disc {formatAlpha(line.discoveryAlpha)}</span>
-                ) : null}
-                {line.daysEarly !== null ? <span className="text-mute"> · {line.daysEarly}d early</span> : null}
+                <LineStats line={line} />
               </div>
               {line.position.note ? (
                 <p className="mt-1.5 mb-0 text-pretty">{line.position.note}</p>
               ) : null}
             </div>
-            {own ? (
-              <div className="self-center">
-                <ClosePositionForm
-                  startupId={line.startup.id}
-                  direction={line.position.direction}
-                  conviction={line.position.conviction}
-                  action={closeAction}
-                />
-              </div>
-            ) : null}
           </div>
         </li>
       ))}
