@@ -1,21 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { bookAction } from "@/app/actions";
-import {
-  countDeployed,
-  getActivePosition,
-  listEventsForStartup,
-  listUserBook,
-  movesLeft,
-} from "@/lib/db/queries";
+import { bookAction } from "@/app/actions/book";
+import { countDeployed, getActivePosition, listEventsForStartup, listUserBook, movesLeft } from "@/lib/db/book";
 import { CONVICTION_CAP, MOVES_PER_DAY } from "@/lib/market";
 import { DAY_MS } from "@/lib/time";
 import { allRows, count, getRow } from "./harness/db";
 import { actAs, clock, form, makeStartup, makeUser, openPosition, outcome } from "./harness/factories";
 
 async function lots(userId: string) {
-  return allRows("SELECT conviction, closed_at, realized_alpha FROM lots WHERE user_id = ? ORDER BY opened_at, conviction", [
-    userId,
-  ]);
+  return allRows(
+    "SELECT conviction, closed_at, realized_alpha FROM lots WHERE user_id = ? ORDER BY opened_at, conviction",
+    [userId],
+  );
 }
 
 describe("opening a position", () => {
@@ -69,16 +64,25 @@ describe("opening a position", () => {
         .state?.error,
     ).toMatch(/whole number/);
     expect(
-      (await outcome(bookAction(null, form({ startupId: startup.id, direction: "long", conviction: "1.5", note: "x" }))))
-        .state?.error,
+      (
+        await outcome(
+          bookAction(null, form({ startupId: startup.id, direction: "long", conviction: "1.5", note: "x" })),
+        )
+      ).state?.error,
     ).toMatch(/whole number/);
     expect(
-      (await outcome(bookAction(null, form({ startupId: startup.id, direction: "long", conviction: "5", note: "x".repeat(501) }))))
-        .state?.error,
+      (
+        await outcome(
+          bookAction(null, form({ startupId: startup.id, direction: "long", conviction: "5", note: "x".repeat(501) })),
+        )
+      ).state?.error,
     ).toMatch(/500 characters/);
     expect(
-      (await outcome(bookAction(null, form({ startupId: startup.id, direction: "long", conviction: "101", note: "ok" }))))
-        .state?.error,
+      (
+        await outcome(
+          bookAction(null, form({ startupId: startup.id, direction: "long", conviction: "101", note: "ok" })),
+        )
+      ).state?.error,
     ).toMatch(/0 to 100/);
     expect(await count("positions")).toBe(0);
   });
@@ -160,7 +164,11 @@ describe("changing a position", () => {
     expect(after.filter((lot) => lot.closed_at !== null)).toHaveLength(1);
     expect(await movesLeft(user.id)).toBe(MOVES_PER_DAY - 2);
     expect(await countDeployed(user.id)).toBe(12);
-    expect((await listEventsForStartup(startup.id)).map((e) => e.kind).sort()).toEqual(["decrease", "increase", "open"]);
+    expect((await listEventsForStartup(startup.id)).map((e) => e.kind).sort()).toEqual([
+      "decrease",
+      "increase",
+      "open",
+    ]);
   });
 
   it("records a thesis-only change for free and rejects a no-op", async () => {

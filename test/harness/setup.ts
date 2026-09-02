@@ -13,8 +13,7 @@ vi.mock("next/headers", async () => {
   return {
     headers: async () => new Headers({ "x-forwarded-for": request.ip }),
     cookies: async () => ({
-      get: (name: string) =>
-        request.cookies.has(name) ? { name, value: request.cookies.get(name) ?? "" } : undefined,
+      get: (name: string) => (request.cookies.has(name) ? { name, value: request.cookies.get(name) ?? "" } : undefined),
       set: (name: string, value: string) => {
         request.cookies.set(name, value);
       },

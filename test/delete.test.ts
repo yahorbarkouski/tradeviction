@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { deleteCommentAction } from "@/app/actions";
-import { getActivePosition, getCommentById, listEventsForStartup, listThread } from "@/lib/db/queries";
+import { deleteCommentAction } from "@/app/actions/comments";
+import { getActivePosition, listEventsForStartup } from "@/lib/db/book";
+import { getCommentById, listThread } from "@/lib/db/comments";
 import { count, getRow } from "./harness/db";
 import { actAs, form, makeStartup, makeUser, outcome, plainComment, reply, thesis, vote } from "./harness/factories";
 

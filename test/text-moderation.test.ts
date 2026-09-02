@@ -28,7 +28,10 @@ describe("assertClean", () => {
   it("blocks text the model flags, including sexual categories", async () => {
     vi.stubEnv("OPENAI_API_KEY", "key");
     let body: unknown = { results: [{ flagged: true, categories: {} }] };
-    vi.stubGlobal("fetch", vi.fn(async () => respond(body)));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => respond(body)),
+    );
     await expect(assertClean(["bad"])).rejects.toThrow("That text isn't allowed.");
     body = { results: [{ flagged: false, categories: { sexual: true } }] };
     await expect(assertClean(["bad"])).rejects.toThrow("That text isn't allowed.");
@@ -38,13 +41,22 @@ describe("assertClean", () => {
 
   it("treats bad answers and outages as unavailable", async () => {
     vi.stubEnv("OPENAI_API_KEY", "key");
-    vi.stubGlobal("fetch", vi.fn(async () => respond({}, 500)));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => respond({}, 500)),
+    );
     await expect(assertClean(["text"])).rejects.toThrow("Could not check that text. Try again.");
-    vi.stubGlobal("fetch", vi.fn(async () => respond({ results: [] })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => respond({ results: [] })),
+    );
     await expect(assertClean(["text"])).rejects.toThrow("Could not check that text. Try again.");
-    vi.stubGlobal("fetch", vi.fn(async () => {
-      throw new Error("offline");
-    }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new Error("offline");
+      }),
+    );
     await expect(assertClean(["text"])).rejects.toThrow("Could not check that text. Try again.");
   });
 });

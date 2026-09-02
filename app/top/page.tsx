@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { ListSkeleton } from "@/components/Skeleton";
 import { TopBoards } from "@/components/TopBoards";
 import { getCurrentUser } from "@/lib/auth";
-import { cachedLeaders } from "@/lib/db/queries";
+import { cachedLeaders } from "@/lib/db/scores";
 
 export const metadata: Metadata = {
   title: "top",

@@ -32,6 +32,9 @@ export const FLAG_KILL = 3;
 export const FRESH_MS = 14 * DAY_MS;
 export const PROVISIONAL_WEIGHT = 0.1;
 export const RANK_HALF_LIFE_MS = 48 * 3_600_000;
+// A closed position shows up on the profile as a receipt once its realized
+// Alpha, either way, is at least this much.
+export const RECEIPT_ALPHA = 8;
 
 export type DirectionSign = -1 | 1;
 
@@ -126,9 +129,7 @@ export type Touch = {
 export type Counted = (userId: string, at: number) => boolean;
 
 export type Genesis =
-  | { kind: "forming" }
-  | { kind: "window"; startedAt: number; endsAt: number }
-  | { kind: "open"; at: number; p: number };
+  { kind: "forming" } | { kind: "window"; startedAt: number; endsAt: number } | { kind: "open"; at: number; p: number };
 
 export type Discovery = {
   quietStart: number;
@@ -364,11 +365,7 @@ export function discover(
   };
 }
 
-export function phaseOf(input: {
-  genesis: Genesis;
-  quietDays: number;
-  hot: boolean;
-}): Phase {
+export function phaseOf(input: { genesis: Genesis; quietDays: number; hot: boolean }): Phase {
   if (input.hot) return "hot";
   if (input.genesis.kind === "open") return "active";
   if (input.quietDays >= QUIET_MIN_DAYS) return "quiet";

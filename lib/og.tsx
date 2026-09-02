@@ -22,14 +22,10 @@ const MONO = "IBM Plex Mono";
 // Shared with the party card in lib/og-party.tsx.
 export { INK, BG, MUTE, LINE, LONG, SHORT, SANS, MONO };
 
-const FONT_SANS_400 =
-  "https://cdn.jsdelivr.net/fontsource/fonts/inter@5.2.8/latin-400-normal.ttf";
-const FONT_SANS_500 =
-  "https://cdn.jsdelivr.net/fontsource/fonts/inter@5.2.8/latin-500-normal.ttf";
-const FONT_SANS_600 =
-  "https://cdn.jsdelivr.net/fontsource/fonts/inter@5.2.8/latin-600-normal.ttf";
-const FONT_MONO_500 =
-  "https://cdn.jsdelivr.net/fontsource/fonts/ibm-plex-mono@5.2.5/latin-500-normal.ttf";
+const FONT_SANS_400 = "https://cdn.jsdelivr.net/fontsource/fonts/inter@5.2.8/latin-400-normal.ttf";
+const FONT_SANS_500 = "https://cdn.jsdelivr.net/fontsource/fonts/inter@5.2.8/latin-500-normal.ttf";
+const FONT_SANS_600 = "https://cdn.jsdelivr.net/fontsource/fonts/inter@5.2.8/latin-600-normal.ttf";
+const FONT_MONO_500 = "https://cdn.jsdelivr.net/fontsource/fonts/ibm-plex-mono@5.2.5/latin-500-normal.ttf";
 
 let fontCache: Promise<ArrayBuffer[]> | null = null;
 
@@ -124,9 +120,7 @@ export function Wordmark({ size = 28 }: { size?: number }) {
       <div style={{ display: "flex", marginRight: Math.round(size * 0.38) }}>
         <Face size={size} />
       </div>
-      <div style={{ display: "flex", fontSize: size, fontWeight: 500, fontFamily: SANS, color: INK }}>
-        Tradeviction
-      </div>
+      <div style={{ display: "flex", fontSize: size, fontWeight: 500, fontFamily: SANS, color: INK }}>Tradeviction</div>
     </div>
   );
 }
@@ -172,15 +166,7 @@ function Mark({ src, size = 72 }: { src: string | null; size?: number }) {
   );
 }
 
-export function Shell({
-  children,
-  accent,
-  meta,
-}: {
-  children: ReactNode;
-  accent?: Direction;
-  meta?: ReactNode;
-}) {
+export function Shell({ children, accent, meta }: { children: ReactNode; accent?: Direction; meta?: ReactNode }) {
   const bar = accent === "long" ? LONG : accent === "short" ? SHORT : null;
   return (
     <div
@@ -211,9 +197,7 @@ export function Shell({
         }}
       >
         <div style={{ display: "flex" }}>{meta}</div>
-        <div style={{ display: "flex", fontSize: 20, color: MUTE, fontFamily: SANS }}>
-          tradeviction.com
-        </div>
+        <div style={{ display: "flex", fontSize: 20, color: MUTE, fontFamily: SANS }}>tradeviction.com</div>
       </div>
     </div>
   );
@@ -384,7 +368,9 @@ export function StartupOg({
     </div>
   ) : null;
   const oneLine = fitBlock(startup.name, nameW, MARKET_NAME_SIZES, 1);
-  const name = oneLine.fits ? oneLine : fitBlock(startup.name, nameW, [MARKET_NAME_SIZES[MARKET_NAME_SIZES.length - 1] ?? 48], 2);
+  const name = oneLine.fits
+    ? oneLine
+    : fitBlock(startup.name, nameW, [MARKET_NAME_SIZES[MARKET_NAME_SIZES.length - 1] ?? 48], 2);
   const delta = market.delta;
   const deltaColor = delta === null || delta === 0 ? MUTE : delta > 0 ? LONG : SHORT;
   const hasWeek = !forming && market.series.some((p) => p !== null);
@@ -488,7 +474,15 @@ export function StartupOg({
         <Bar long={market.publicLong} short={market.publicShort} muted={forming} />
       </div>
       {forming ? null : (
-        <div style={{ display: "flex", width: "100%", justifyContent: "space-between", alignItems: "center", marginTop: 12 }}>
+        <div
+          style={{
+            display: "flex",
+            width: "100%",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginTop: 12,
+          }}
+        >
           <div style={{ display: "flex", ...label, color: LONG }}>{`${market.publicLong} long`}</div>
           <div style={{ display: "flex", ...label, color: SHORT }}>{`${market.publicShort} short`}</div>
         </div>
@@ -658,7 +652,9 @@ const HEAD_TYPE = TITLE_TYPE;
 
 // Header widths: avatar, the gaps, the side pill or "on", and the company mark.
 function thesisHeadBudget(side: Direction | null): number {
-  const link = side ? measureText(`[ ${side} ]`, 26, { tracking: 0, weight: 1 }) + 44 : measureText("on", 30, THESIS_TYPE);
+  const link = side
+    ? measureText(`[ ${side} ]`, 26, { tracking: 0, weight: 1 }) + 44
+    : measureText("on", 30, THESIS_TYPE);
   return CONTENT_W - 14 - link - 14 - 48;
 }
 
@@ -716,7 +712,9 @@ export function ThesisOg({
             <Pill side={side} filled />
           </div>
         ) : (
-          <div style={{ display: "flex", marginLeft: 14, marginRight: 14, fontSize: 30, color: MUTE, fontFamily: SANS }}>
+          <div
+            style={{ display: "flex", marginLeft: 14, marginRight: 14, fontSize: 30, color: MUTE, fontFamily: SANS }}
+          >
             on
           </div>
         )}

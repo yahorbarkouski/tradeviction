@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { joinPartyAction } from "@/app/actions";
+import { joinPartyAction } from "@/app/actions/parties";
 import { Honeypot } from "@/components/Honeypot";
 import { btn } from "@/lib/ui";
 

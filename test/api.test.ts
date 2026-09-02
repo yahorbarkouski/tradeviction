@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { GET as ingest } from "@/app/api/ingest/route";
 import { GET as lookup } from "@/app/api/lookup/route";
-import { applyBookChange, countStartups } from "@/lib/db/queries";
+import { applyBookChange } from "@/lib/db/book";
+import { countStartups } from "@/lib/db/startups";
 import { loadProfileBook, loadThesis } from "@/lib/share";
 import { makeStartup, makeUser, thesis } from "./harness/factories";
 
@@ -24,7 +25,8 @@ describe("ingest route", () => {
       (await ingest(new Request("http://localhost/api/ingest", { headers: { authorization: "Bearer wrong" } }))).status,
     ).toBe(401);
     expect(
-      (await ingest(new Request("http://localhost/api/ingest", { headers: { authorization: "Bearer s3cret" } }))).status,
+      (await ingest(new Request("http://localhost/api/ingest", { headers: { authorization: "Bearer s3cret" } })))
+        .status,
     ).toBe(200);
   });
 

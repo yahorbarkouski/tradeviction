@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { adminDeleteCommentAction, adminUpdateCommentAction, deleteCommentAction } from "@/app/actions";
+import { adminDeleteCommentAction, adminUpdateCommentAction, deleteCommentAction } from "@/app/actions/comments";
 import { Confirm } from "@/components/Confirm";
 import { area, btn, ghost } from "@/lib/ui";
 

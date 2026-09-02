@@ -2,14 +2,15 @@
 
 import Link from "next/link";
 import { useActionState, useOptimistic, useState } from "react";
-import { bookAction, type ActionState } from "@/app/actions";
+import { bookAction } from "@/app/actions/book";
+import type { ActionState } from "@/app/actions/lib";
 import { Confirm } from "@/components/Confirm";
 import { Honeypot } from "@/components/Honeypot";
 import { MetricLabel } from "@/components/Metric";
 import { ShareLink } from "@/components/ShareLink";
-import { CONVICTION_CAP, MOVES_PER_DAY } from "@/lib/game";
+import { CONVICTION_CAP, MOVES_PER_DAY } from "@/lib/market";
 import { formatAlpha, stanceTone, stanceWord } from "@/lib/format";
-import { NOTE_MAX } from "@/lib/slug";
+import { NOTE_MAX } from "@/lib/validate";
 import { cx } from "@/lib/cx";
 import { area, btn, closeBtn, field, kicker, label, metric, qty, stance } from "@/lib/ui";
 import { isDirection, type BookLine, type Direction, type Position } from "@/lib/types";
@@ -54,9 +55,7 @@ export function PositionForm({
 }) {
   const current = line?.position ?? null;
   const [direction, setDirection] = useState<Direction | null>(preset ?? current?.direction ?? null);
-  const [convictionRaw, setConvictionRaw] = useState(
-    current !== null ? String(current.conviction) : "",
-  );
+  const [convictionRaw, setConvictionRaw] = useState(current !== null ? String(current.conviction) : "");
   const [note, setNote] = useState(current?.note ?? "");
   const conviction = parseConviction(convictionRaw);
   const [pendingChange, setPendingChange] = useOptimistic<PendingChange | null>(null);
@@ -66,18 +65,21 @@ export function PositionForm({
   }, null as ActionState);
   const room = CONVICTION_CAP - deployed + (current?.conviction ?? 0);
   const ready = direction !== null && note.trim().length <= NOTE_MAX && conviction <= room;
-  const thesisOnly =
-    current !== null && direction === current.direction && conviction === current.conviction;
-  const reducing =
-    current !== null && direction === current.direction && conviction < current.conviction;
+  const thesisOnly = current !== null && direction === current.direction && conviction === current.conviction;
+  const reducing = current !== null && direction === current.direction && conviction < current.conviction;
   const flipping = current !== null && direction !== null && direction !== current.direction;
-  const spendsMove =
-    !thesisOnly && !reducing && (current === null || flipping || conviction > current.conviction);
+  const spendsMove = !thesisOnly && !reducing && (current === null || flipping || conviction > current.conviction);
 
   return (
     <section className="mb-8" id="position" aria-busy={pendingChange !== null}>
       {line ? (
-        <HeldPosition line={line} action={action} pending={pending} pendingChange={pendingChange} sharePath={sharePath} />
+        <HeldPosition
+          line={line}
+          action={action}
+          pending={pending}
+          pendingChange={pendingChange}
+          sharePath={sharePath}
+        />
       ) : pendingChange ? (
         <div className={cx(kicker, "opacity-60")}>
           Opening <span className={stanceTone(pendingChange.direction)}>{stanceWord(pendingChange.direction)}</span>{" "}
@@ -145,7 +147,9 @@ export function PositionForm({
                 }
                 onChange={(e) => setNote(e.target.value)}
               />
-              <div className="mt-1 text-sm text-mute tabular-nums">{note.trim().length}/{NOTE_MAX}</div>
+              <div className="mt-1 text-sm text-mute tabular-nums">
+                {note.trim().length}/{NOTE_MAX}
+              </div>
               {state?.error ? <p className="mt-2 text-short">{state.error}</p> : null}
               <button
                 className={`mt-3.5 ${btn}`}
@@ -155,22 +159,13 @@ export function PositionForm({
                 {pending ? "Saving" : commitLabel(current, direction, conviction)}
               </button>
               <p className="mt-2 text-sm text-mute">
-                {changeHint(
-                  current,
-                  direction,
-                  conviction,
-                  spendsMove,
-                  reducing,
-                  thesisOnly,
-                  movesRemaining,
-                )}
+                {changeHint(current, direction, conviction, spendsMove, reducing, thesisOnly, movesRemaining)}
               </p>
             </>
           ) : (
             <p className="mt-3 text-sm text-mute">
-              Pick <span className="text-long">long</span> or <span className="text-short">short</span>.
-              Opening spends a move. Closing later is free. 0 Conviction stays on
-              the Book, out of Pulse.
+              Pick <span className="text-long">long</span> or <span className="text-short">short</span>. Opening spends
+              a move. Closing later is free. 0 Conviction stays on the Book, out of Pulse.
             </p>
           )}
         </form>
@@ -247,9 +242,7 @@ function HeldPosition({
             {formatAlpha(line.liveAlpha)}
           </div>
           {line.discoveryAlpha !== 0 ? (
-            <div className="mt-1 font-mono text-sm tabular-nums text-mute">
-              disc {formatAlpha(line.discoveryAlpha)}
-            </div>
+            <div className="mt-1 font-mono text-sm tabular-nums text-mute">disc {formatAlpha(line.discoveryAlpha)}</div>
           ) : null}
         </div>
       </div>
@@ -355,15 +348,7 @@ function stanceSkin(side: Direction, on: boolean): string {
   return on ? "border-short bg-short text-bg" : "border-short bg-transparent text-short";
 }
 
-function StanceButton({
-  side,
-  on,
-  onClick,
-}: {
-  side: Direction;
-  on: boolean;
-  onClick: () => void;
-}) {
+function StanceButton({ side, on, onClick }: { side: Direction; on: boolean; onClick: () => void }) {
   return (
     <button type="button" aria-pressed={on} className={cx(stance, stanceSkin(side, on))} onClick={onClick}>
       [ {side} ]
@@ -375,9 +360,7 @@ export function StanceLinks({ slug, preset = null }: { slug: string; preset?: Di
   return (
     <section className="mb-8" id="position">
       <div className={kicker}>Open a position</div>
-      <p className="mt-2 mb-3 text-sm text-mute">
-        Login to pick a side. Opening spends a move. Closing later is free.
-      </p>
+      <p className="mt-2 mb-3 text-sm text-mute">Login to pick a side. Opening spends a move. Closing later is free.</p>
       <div className="flex gap-2">
         <Link
           href={`/login?next=/s/${slug}/long`}

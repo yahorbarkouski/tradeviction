@@ -3,7 +3,8 @@ import { BadgeCheck } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { adminMuteAction, adminTrustAction, logoutAction, showDeadAction } from "@/app/actions";
+import { logoutAction } from "@/app/actions/auth";
+import { adminMuteAction, adminTrustAction, showDeadAction } from "@/app/actions/users";
 import { BookEditor } from "@/components/BookEditor";
 import { Favicon } from "@/components/Favicon";
 import { LineStats } from "@/components/LineStats";
@@ -12,17 +13,10 @@ import { ListSkeleton } from "@/components/Skeleton";
 import { XLink } from "@/components/XLink";
 import { getCurrentUser } from "@/lib/auth";
 import { isAdmin } from "@/lib/admin";
-import {
-  alphaRank,
-  cachedFeed,
-  getPlayerStats,
-  getUserByUsername,
-  getXChallenge,
-  listIpSiblings,
-  listUserBook,
-  listUserReceipts,
-  movesLeft,
-} from "@/lib/db/queries";
+import { listUserBook, listUserReceipts, movesLeft } from "@/lib/db/book";
+import { cachedFeed } from "@/lib/db/markets";
+import { alphaRank, getPlayerStats } from "@/lib/db/scores";
+import { getUserByUsername, getXChallenge, listIpSiblings } from "@/lib/db/users";
 import { formatAlpha, formatRank, formatWhen, stanceTone, stanceWord } from "@/lib/format";
 import { CONVICTION_CAP, FRESH_MS } from "@/lib/market";
 import { nowMs } from "@/lib/time";
@@ -91,7 +85,9 @@ async function ProfileBody({ params }: Pick<PageProps<"/u/[username]">, "params"
             <img src={avatar} alt="" width={40} height={40} className="block h-10 w-10 rounded-full" />
           </a>
         ) : null}
-        <h1 className={cx(heading, "min-w-0", avatar && "col-start-2", now - user.createdAt < FRESH_MS && "text-fresh")}>
+        <h1
+          className={cx(heading, "min-w-0", avatar && "col-start-2", now - user.createdAt < FRESH_MS && "text-fresh")}
+        >
           {user.username}
           {user.xVerified ? (
             <span className="ml-1.5 text-mute" title="verified on X">
@@ -110,15 +106,15 @@ async function ProfileBody({ params }: Pick<PageProps<"/u/[username]">, "params"
             avatar && "col-start-2",
           )}
         >
-            <MetricValue id="alpha" className={cx("font-medium", stats.alpha >= 0 ? "text-long" : "text-short")}>
-              {formatAlpha(stats.alpha)}
-            </MetricValue>
-            <MetricValue id="karma" className="font-medium text-ink">
-              {stats.karma.toLocaleString("en-US")}
-            </MetricValue>
-            <Link href="/top" className="text-mute">
-              {formatRank(rank)}
-            </Link>
+          <MetricValue id="alpha" className={cx("font-medium", stats.alpha >= 0 ? "text-long" : "text-short")}>
+            {formatAlpha(stats.alpha)}
+          </MetricValue>
+          <MetricValue id="karma" className="font-medium text-ink">
+            {stats.karma.toLocaleString("en-US")}
+          </MetricValue>
+          <Link href="/top" className="text-mute">
+            {formatRank(rank)}
+          </Link>
         </p>
         <div className={cx("mt-1 min-w-0", avatar && "col-start-2")}>
           <div className="text-sm text-mute">
@@ -211,10 +207,7 @@ async function ProfileBody({ params }: Pick<PageProps<"/u/[username]">, "params"
             <h2 className={cx(kicker, "mt-5 mb-1.5")}>Receipts</h2>
             <ul className="m-0 list-none p-0">
               {receipts.map((receipt) => (
-                <li
-                  className="mb-2 pt-0.5 pb-1.5 tabular-nums"
-                  key={`${receipt.startup.id}-${receipt.openedAt}`}
-                >
+                <li className="mb-2 pt-0.5 pb-1.5 tabular-nums" key={`${receipt.startup.id}-${receipt.openedAt}`}>
                   <div className="grid grid-cols-[1.25rem_minmax(0,1fr)_auto] items-start gap-x-1.5">
                     <Favicon domain={receipt.startup.domain} name={receipt.startup.name} size={20} />
                     <div className="min-w-0">
@@ -268,8 +261,7 @@ function BookSide({ lines, kind }: { lines: BookLine[]; kind: "long" | "short" }
             <Favicon domain={line.startup.domain} name={line.startup.name} size={20} />
             <div className="min-w-0">
               <div>
-                <Link href={`/s/${line.startup.slug}`}>{line.startup.name}</Link>
-                {" "}
+                <Link href={`/s/${line.startup.slug}`}>{line.startup.name}</Link>{" "}
                 <span className={cx("font-mono tabular-nums", stanceTone(kind))}>
                   {line.position.conviction >= 1 ? line.position.conviction : "inactive"}
                 </span>
@@ -277,9 +269,7 @@ function BookSide({ lines, kind }: { lines: BookLine[]; kind: "long" | "short" }
               <div className="text-sm text-mute">
                 <LineStats line={line} />
               </div>
-              {line.position.note ? (
-                <p className="mt-1.5 mb-0 text-pretty">{line.position.note}</p>
-              ) : null}
+              {line.position.note ? <p className="mt-1.5 mb-0 text-pretty">{line.position.note}</p> : null}
             </div>
           </div>
         </li>

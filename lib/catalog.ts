@@ -1,6 +1,7 @@
 import catalog from "@/data/catalog.json";
 import { run } from "@/lib/db";
-import { getMeta, insertStartup, purgeHnStartups, setMeta, setOpening } from "@/lib/db/queries";
+import { getMeta, setMeta } from "@/lib/db/meta";
+import { insertStartup, purgeHnStartups, setOpening } from "@/lib/db/startups";
 import { fnv1a } from "@/lib/hash";
 
 type CatalogRow = {

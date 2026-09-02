@@ -1,10 +1,12 @@
 import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { cacheLife, cacheTag } from "next/cache";
 import { cookies } from "next/headers";
-import { getUserById } from "@/lib/db/queries";
+import { getUserById } from "@/lib/db/users";
 import { TAG } from "@/lib/tags";
 import type { User } from "@/lib/types";
 
+// The cookie keeps the name from the site's first release ("long or short");
+// renaming it would sign everyone out.
 const COOKIE = "los_session";
 const TTL_SECONDS = 60 * 60 * 24 * 30;
 const SCRYPT = { N: 16384, r: 8, p: 1 } as const;

@@ -5,7 +5,7 @@ import { EditStartupForm } from "@/components/EditStartupForm";
 import { LineSkeleton } from "@/components/Skeleton";
 import { getCurrentUser } from "@/lib/auth";
 import { isAdmin } from "@/lib/admin";
-import { getStartupBySlug } from "@/lib/db/queries";
+import { getStartupBySlug } from "@/lib/db/startups";
 import { heading, page } from "@/lib/ui";
 
 export const metadata: Metadata = { title: "edit" };

@@ -1,11 +1,10 @@
 import { cacheLife, cacheTag } from "next/cache";
 import { isAdmin, seesDead } from "@/lib/admin";
 import { getCurrentUser } from "@/lib/auth";
-import { getKarma, getPlayerAlpha, listViewerMarks } from "@/lib/db/queries";
+import { listViewerMarks } from "@/lib/db/comments";
+import { getKarma, getPlayerAlpha } from "@/lib/db/scores";
 import type { ViewerMarks } from "@/lib/marks";
 import { TAG } from "@/lib/tags";
-
-export type { ViewerMarks } from "@/lib/marks";
 
 export type ViewerStats = {
   alpha: number;

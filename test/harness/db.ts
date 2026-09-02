@@ -1,4 +1,4 @@
-import { allRows, getRow, run } from "@/lib/db";
+import { allRows, closePool, getRow, run } from "@/lib/db";
 
 const TABLES = [
   "comment_votes",
@@ -22,13 +22,8 @@ export async function resetDb(): Promise<void> {
   await run("DELETE FROM meta WHERE key = 'catalog'");
 }
 
-type PoolLike = { end: () => Promise<void> };
-
 export async function closeDb(): Promise<void> {
-  const g = globalThis as typeof globalThis & { __losPool?: PoolLike; __losReady?: Promise<void> };
-  await g.__losPool?.end();
-  g.__losPool = undefined;
-  g.__losReady = undefined;
+  await closePool();
 }
 
 export async function count(table: string, where = "TRUE", params: (string | number | null)[] = []): Promise<number> {

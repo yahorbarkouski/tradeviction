@@ -2,13 +2,7 @@
 
 import { useState, type MouseEvent } from "react";
 import { ThreadList } from "@/components/ThreadList";
-import {
-  filterThread,
-  sortThread,
-  threadHref,
-  type ThreadSide,
-  type ThreadSort,
-} from "@/lib/thread";
+import { filterThread, sortThread, threadHref, type ThreadSide, type ThreadSort } from "@/lib/thread";
 import { cx } from "@/lib/cx";
 import type { ThreadNode } from "@/lib/types";
 

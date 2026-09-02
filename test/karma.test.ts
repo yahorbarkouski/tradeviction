@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { applyBookChange, getKarma, getPlayerStats, listLeaders } from "@/lib/db/queries";
+import { applyBookChange } from "@/lib/db/book";
+import { getKarma, getPlayerStats, listLeaders } from "@/lib/db/scores";
 import { KARMA_DAY_CAP, KARMA_PAIR_CAP } from "@/lib/market";
 import { DAY_MS } from "@/lib/time";
 import { clock, establish, makeStartup, makeUser, plainComment, vote } from "./harness/factories";

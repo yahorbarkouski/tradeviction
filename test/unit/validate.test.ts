@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { headline, parseNote } from "@/lib/slug";
+import { headline, parseNote } from "@/lib/validate";
 
 describe("headline", () => {
   it("uppercases the first letter and leaves the rest alone", () => {

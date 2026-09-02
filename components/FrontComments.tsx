@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { FrontCommentRow } from "@/components/FrontCommentRow";
 import { MarksProvider } from "@/components/Marks";
-import { FRONT_PAGE } from "@/lib/db/queries";
+import { FRONT_PAGE } from "@/lib/db/comments";
 import type { FrontComment } from "@/lib/types";
 import type { ViewerMarks } from "@/lib/marks";
 

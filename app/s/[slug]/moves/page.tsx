@@ -4,7 +4,9 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { MetricValue } from "@/components/Metric";
 import { ListSkeleton } from "@/components/Skeleton";
-import { cachedEvents, cachedStartupBySlug, getMarket } from "@/lib/db/queries";
+import { cachedEvents } from "@/lib/db/book";
+import { getMarket } from "@/lib/db/markets";
+import { cachedStartupBySlug } from "@/lib/db/startups";
 import { eventKindLabel, formatAge, formatDepth, stanceWord } from "@/lib/format";
 import { cx } from "@/lib/cx";
 import { cachedNow } from "@/lib/clock";
@@ -49,10 +51,7 @@ async function MovesBody({ params }: Pick<PageProps<"/s/[slug]/moves">, "params"
             <li key={event.id} className="pt-0.5 pb-1.5">
               <span className={statLine}>
                 <span
-                  className={cx(
-                    event.direction === "long" && "text-long",
-                    event.direction === "short" && "text-short",
-                  )}
+                  className={cx(event.direction === "long" && "text-long", event.direction === "short" && "text-short")}
                 >
                   {eventKindLabel(event.kind)}
                   {event.direction ? ` ${stanceWord(event.direction)}` : ""}

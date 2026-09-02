@@ -1,42 +1,66 @@
 # Tradeviction
 
-You bet conviction, not money. LONG or SHORT a startup. Pulse is who is staking at least 1 Conviction. One person, one vote.
+**Long or short startups with conviction.** Bet your beliefs before they become common knowledge.
 
-## Run
+Tradeviction is a prediction game where the stake is your reputation, not money. Every company has a conviction market. You call it long or short, put some of your hundred points of Conviction behind the call, write a take, and wait. If the crowd comes around to your view, you earn Alpha. If you spotted it while the board was still quiet, you earn more.
+
+Live at [tradeviction.com](https://tradeviction.com).
+
+## How it works
+
+- Every company has a conviction market. Earn **Alpha** by being early to what others get wrong: go **long** on companies people underestimate and **short** on companies people overhype.
+- **Pulse** is how bullish or bearish people with open positions are right now, 0 to 100. One person, one vote. **Depth** is how many people placed a bet.
+- You have **100 Conviction** to spread across your strongest bets. More Conviction on a position means more Alpha at stake, so you gain or lose more.
+- Positions stay open until you close them. Backing a quiet startup months before everybody noticed it is what the scoring rewards most.
+- **Hotness** compares how many people acted on a board in the last few days with how many usually do.
+- Explain your position with arguments to earn **Karma**. Others vote for the takes that helped them.
+- Make **parties**: private leaderboards you join by invite link, to see what your friends or your team are long and short.
+
+## The formulas
+
+Pulse is a share long with a small prior, so an empty board reads 50 and one vote cannot pin it to an edge:
+
+```
+p = (w·p₀ + long) / (w + long + short)        p₀ = 0.5, w = 4 by default; a catalog opening line sets p₀ with w = 10
+```
+
+Alpha on a position is the sum of three parts, each scaled by the Conviction `c` on it and the side `s` (+1 long, −1 short):
+
+```
+price     = c · s · (logit(p_now) − logit(p_entry))   how far the crowd moved your way since you entered
+discovery = c · s · (2p* − 1) · ln(1 + days/7)        days held while the board was quiet, paid once it heats up
+carry     = 0.002 · c · days                          a small daily cost of holding
+alpha     = price + discovery − carry
+```
+
+Your entry price leaves your own vote out, so you cannot move Pulse by joining. Hotness is a saturating function of how many people touched the board in the last 72 hours against a 28-day baseline, weighted toward newcomers. Only established accounts count toward Pulse, Depth, and Hotness; new accounts play at full Alpha but weigh a tenth in rankings until they are a week old, have touched three companies, and a trusted member has voted for one of their takes.
+
+Every constant and rule, with worked examples, is in [docs/scoring.md](docs/scoring.md). The code is `lib/market.ts` (pure formulas) and `lib/engine.ts` (the world they run on).
+
+## Run it locally
+
+You need Node 20.9+ and Docker (for Postgres).
 
 ```bash
 npm install
 cp .env.example .env.local
-```
-
-Set `DATABASE_URL` to a Neon connection string and `SESSION_SECRET` to a long random value.
-
-```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). The schema and the catalog are applied the first time a server instance touches the database, and only when their version markers in the `meta` table differ from the code.
+Open [http://localhost:3000](http://localhost:3000). The schema and the company catalog are applied the first time a server touches an empty database. Register the username `admin` to get the moderation controls.
+
+```bash
+npm test          # integration suite against a throwaway Postgres
+npm run test:unit # the pure formulas, no Docker needed
+npm run check     # lint, types, unused code, formatting
+```
 
 ## Stack
 
-Next.js on Vercel. Postgres on Neon. Auth is username plus password in a signed cookie.
+Next.js 16 with Cache Components, React 19, Tailwind 4, Postgres (Neon in production, plain `pg` locally) with hand-written SQL, Vercel. No ORM, no state library, one signed cookie for auth. See [docs/architecture.md](docs/architecture.md) for how a request flows and how the cache is kept honest, and [docs/deploying.md](docs/deploying.md) to run your own.
 
-## Speed
+## Contributing
 
-Pages use Cache Components: every route ships a static shell, and whatever depends on the URL or the viewer streams into it. Shared reads (`cachedWorldData`, `cachedFrontPage`, `cachedThread`, `cachedFeed`, `cachedLeaders`, `cachedStartupBySlug`) carry cache tags from `lib/tags.ts`; every server action expires the tags its write touched with `updateTag`, so the re-render that ships with the action's response already shows the write. Viewer-specific state (votes, flags, standing, the header numbers) is read behind `use cache: private`, kept only in the browser, and overlaid on the shared lists client side. Votes, replies, and position changes render optimistically and are confirmed by the server's re-render. Links to feeds and the leaderboard prefetch their content; links into a startup prefetch it on hover.
+Issues and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) has the setup, the conventions, and where things live. Scoring changes should come with a test and a line in `docs/scoring.md`.
 
-## Parties
-
-A party is a private board, like an Advent of Code leaderboard. Make one on `/parties`, share its invite link (`/join/<code>`, a 32-character secret behind a copy button), and everyone who joins sees the members ranked by Alpha with what each is long and short. Party and invite links unfurl with a card of the top five. The owner can replace the link or delete the party; an owner who leaves hands the party to whoever joined next, and the last member out takes it with them.
-
-## Book
-
-Your own profile is where the portfolio gets built. Every open position is a row with its side and Conviction as live controls, a bar shows how the hundred is spread, and a search box adds companies from the catalog, with the hottest boards offered before you type. Edits stage in the browser: a change list spells out what each one does and whether it spends a move, and one Commit (or Cmd+Enter) sends them all as a single server action. The batch is checked as a whole against the cap and the day's moves, then lands in one transaction that frees Conviction before spending it, so shifting 60 from one company to another is one step. Any failure, including a page whose view of the Book is older than the database, leaves the Book untouched.
-
-## Tests
-
-`npm test` runs the integration suite in `test/`. It starts a throwaway Postgres with Docker through testcontainers, applies the real schema and migrations, and drives the server actions, queries, and market engine against it; every table is truncated between tests. To reuse a database you already run, set `TEST_DATABASE_URL` (for example the compose one: `postgres://tradeviction:tradeviction@127.0.0.1:5432/tradeviction_test`). Never point it at real data.
-
-## Trust
-
-Anyone can vote the moment they sign up, and the number on a take counts every unmuted vote. Ranking weighs votes from established accounts in full and votes from newer accounts at one tenth; the front page also decays with a 48-hour half-life. An account is established once it is 7 days old, has touched 3 companies, and a trusted or X-verified member has upvoted one of its takes. Two things establish it at once: the `admin` account marking it trusted from its profile, or the user linking an X account that carries a checkmark by putting a short code in their bio, which the site checks through twitterapi.io (`TWITTERIO_API_KEY`). One X account can vouch for one user. Muted accounts count for nothing anywhere.
+[MIT](LICENSE).

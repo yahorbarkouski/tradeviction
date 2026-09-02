@@ -7,14 +7,9 @@ import { MarksProvider } from "@/components/Marks";
 import { PositionForm, StanceLinks } from "@/components/PositionForm";
 import { HeadSkeleton, PositionSkeleton, ThreadSkeleton } from "@/components/Skeleton";
 import { getCurrentUser } from "@/lib/auth";
-import {
-  cachedStartupBySlug,
-  cachedThread,
-  countDeployed,
-  getBookLine,
-  getTakeCommentId,
-  movesLeft,
-} from "@/lib/db/queries";
+import { countDeployed, getBookLine, movesLeft } from "@/lib/db/book";
+import { cachedThread, getTakeCommentId } from "@/lib/db/comments";
+import { cachedStartupBySlug } from "@/lib/db/startups";
 import { cachedNow } from "@/lib/clock";
 import { nowMs } from "@/lib/time";
 import { commentPath, isThreadSide, isThreadSort } from "@/lib/thread";

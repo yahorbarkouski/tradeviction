@@ -1,19 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { expect, vi } from "vitest";
-import {
-  bookAction,
-  flagAction,
-  loginAction,
-  registerAction,
-  replyAction,
-  submitStartupAction,
-  voteAction,
-  vouchAction,
-  type ActionState,
-} from "@/app/actions";
+import { loginAction, registerAction } from "@/app/actions/auth";
+import { bookAction } from "@/app/actions/book";
+import { flagAction, replyAction, voteAction, vouchAction } from "@/app/actions/comments";
+import type { ActionState } from "@/app/actions/lib";
+import { submitStartupAction } from "@/app/actions/startups";
 import { getCurrentUser, hashPassword, setSession } from "@/lib/auth";
 import { getRow, run } from "@/lib/db";
-import { insertStartup, listFrontComments } from "@/lib/db/queries";
+import { listFrontComments } from "@/lib/db/comments";
+import { insertStartup } from "@/lib/db/startups";
 import { ELIGIBLE_STARTUPS } from "@/lib/market";
 import { slugify } from "@/lib/slug";
 import { DAY_MS } from "@/lib/time";
@@ -166,11 +161,18 @@ export async function establish(
 // A trusted member upvotes the comment at the given time.
 export async function endorse(commentId: string, at = Date.now()): Promise<User> {
   const endorser = await makeUser({ trusted: true, createdAt: at });
-  await run("INSERT INTO comment_votes (comment_id, user_id, created_at) VALUES (?, ?, ?)", [commentId, endorser.id, at]);
+  await run("INSERT INTO comment_votes (comment_id, user_id, created_at) VALUES (?, ?, ?)", [
+    commentId,
+    endorser.id,
+    at,
+  ]);
   return endorser;
 }
 
-export async function register(username: string, opts: { password?: string; ip?: string; next?: string } = {}): Promise<User> {
+export async function register(
+  username: string,
+  opts: { password?: string; ip?: string; next?: string } = {},
+): Promise<User> {
   request.cookies.clear();
   request.ip = opts.ip ?? freshIp();
   const fields: Record<string, string> = { username, password: opts.password ?? PASSWORD };
@@ -187,7 +189,11 @@ export async function registerResult(fields: Record<string, string>, ip = freshI
   return outcome(registerAction(null, form(fields)));
 }
 
-export async function login(username: string, password = PASSWORD, extra: Record<string, string> = {}): Promise<Outcome> {
+export async function login(
+  username: string,
+  password = PASSWORD,
+  extra: Record<string, string> = {},
+): Promise<Outcome> {
   request.cookies.clear();
   return outcome(loginAction(null, form({ username, password, ...extra })));
 }
@@ -230,7 +236,12 @@ export async function thesis(user: User, startup: Startup, note = THESIS, convic
 
 // A root comment without a position, inserted directly. Handy when a test needs
 // many comments and the book path's gaps and move caps would get in the way.
-export async function plainComment(user: User, startup: Startup, text = "A plain root comment", at = Date.now()): Promise<string> {
+export async function plainComment(
+  user: User,
+  startup: Startup,
+  text = "A plain root comment",
+  at = Date.now(),
+): Promise<string> {
   const id = randomUUID();
   await run(
     `INSERT INTO comments (id, startup_id, user_id, parent_id, position_id, text, created_at)

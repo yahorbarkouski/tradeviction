@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { xStartAction, xUnlinkAction, xVerifyAction } from "@/app/actions";
+import { xStartAction, xUnlinkAction, xVerifyAction } from "@/app/actions/users";
 import { Confirm } from "@/components/Confirm";
 import { copyText } from "@/lib/clipboard";
 import type { XChallenge } from "@/lib/types";

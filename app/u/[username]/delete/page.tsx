@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { adminDeleteUserAction } from "@/app/actions";
+import { adminDeleteUserAction } from "@/app/actions/users";
 import { ConfirmDanger } from "@/components/ConfirmDanger";
 import { LineSkeleton } from "@/components/Skeleton";
 import { getCurrentUser } from "@/lib/auth";
 import { isAdmin } from "@/lib/admin";
-import { getUserByUsername } from "@/lib/db/queries";
+import { getUserByUsername } from "@/lib/db/users";
 
 export const metadata: Metadata = { title: "delete" };
 

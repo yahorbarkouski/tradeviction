@@ -24,15 +24,7 @@ function isActive(href: string, pathname: string, sort: string | null): boolean 
   return pathname === href;
 }
 
-function NavBar({
-  className,
-  sort,
-  pathname,
-}: {
-  className?: string;
-  sort: string | null;
-  pathname: string;
-}) {
+function NavBar({ className, sort, pathname }: { className?: string; sort: string | null; pathname: string }) {
   return (
     <nav className={cx("flex flex-wrap items-center gap-x-3 gap-y-1 text-mute leading-none", className)}>
       {LINKS.map((link) => (
@@ -60,11 +52,7 @@ function NavInner({ className }: { className?: string }) {
 
 export function Nav({ className }: { className?: string }) {
   return (
-    <Suspense
-      fallback={
-        <NavBar className={className} pathname="" sort={null} />
-      }
-    >
+    <Suspense fallback={<NavBar className={className} pathname="" sort={null} />}>
       <NavInner className={className} />
     </Suspense>
   );

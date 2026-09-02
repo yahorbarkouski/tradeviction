@@ -1,15 +1,6 @@
 "use client";
 
-import {
-  Activity,
-  Anchor,
-  ArrowUpDown,
-  Crosshair,
-  Flame,
-  Heart,
-  Layers,
-  type LucideIcon,
-} from "lucide-react";
+import { Activity, Anchor, ArrowUpDown, Crosshair, Flame, Heart, Layers, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { cx } from "@/lib/cx";
 
@@ -47,15 +38,7 @@ export function MetricIcon({ id, className }: { id: MetricId; className?: string
   );
 }
 
-export function MetricLabel({
-  id,
-  children,
-  className,
-}: {
-  id: MetricId;
-  children?: ReactNode;
-  className?: string;
-}) {
+export function MetricLabel({ id, children, className }: { id: MetricId; children?: ReactNode; className?: string }) {
   return (
     <span className={cx("whitespace-nowrap", className)}>
       <MetricIcon id={id} />
@@ -72,15 +55,7 @@ export function MetricHead({ id, className }: { id: MetricId; className?: string
   );
 }
 
-export function MetricValue({
-  id,
-  children,
-  className,
-}: {
-  id: MetricId;
-  children: ReactNode;
-  className?: string;
-}) {
+export function MetricValue({ id, children, className }: { id: MetricId; children: ReactNode; className?: string }) {
   return (
     <span
       className={cx("inline-flex items-center gap-[0.28em] leading-none whitespace-nowrap tabular-nums", className)}

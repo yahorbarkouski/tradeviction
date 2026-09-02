@@ -69,11 +69,7 @@ export async function verifyTurnstile(token: unknown, action: string): Promise<v
     throw new GuardError("Verification failed.");
   }
   if (dummy) return;
-  if (
-    result.action !== action ||
-    typeof result.hostname !== "string" ||
-    !expectedHostnames.has(result.hostname)
-  ) {
+  if (result.action !== action || typeof result.hostname !== "string" || !expectedHostnames.has(result.hostname)) {
     throw new GuardError("Verification failed.");
   }
 }

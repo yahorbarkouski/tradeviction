@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { showDeadAction } from "@/app/actions";
+import { showDeadAction } from "@/app/actions/users";
 import { getCurrentUser } from "@/lib/auth";
 import { actAs, form, frontPage, makeStartup, makeUser, outcome, plainComment } from "./harness/factories";
 

@@ -1,21 +1,11 @@
 import { describe, expect, it } from "vitest";
-import {
-  adminDeleteCommentAction,
-  adminDeleteStartupAction,
-  adminDeleteUserAction,
-  adminMuteAction,
-  adminTrustAction,
-  adminUpdateCommentAction,
-  adminUpdateStartupAction,
-} from "@/app/actions";
-import {
-  getCommentById,
-  getPlayerStats,
-  getStartupById,
-  getUserByUsername,
-  listIpSiblings,
-  listThread,
-} from "@/lib/db/queries";
+import { adminDeleteCommentAction, adminUpdateCommentAction } from "@/app/actions/comments";
+import { adminDeleteStartupAction, adminUpdateStartupAction } from "@/app/actions/startups";
+import { adminDeleteUserAction, adminMuteAction, adminTrustAction } from "@/app/actions/users";
+import { getCommentById, listThread } from "@/lib/db/comments";
+import { getPlayerStats } from "@/lib/db/scores";
+import { getStartupById } from "@/lib/db/startups";
+import { getUserByUsername, listIpSiblings } from "@/lib/db/users";
 import { PROVISIONAL_WEIGHT } from "@/lib/market";
 import type { User } from "@/lib/types";
 import { count, getRow, run } from "./harness/db";
@@ -160,7 +150,9 @@ describe("deleting", () => {
     const other = await plainComment(bob, startup, "unrelated");
 
     await actAs(root);
-    const result = await outcome(adminDeleteCommentAction(form({ commentId: top, next: `/s/${startup.slug}/c/${top}` })));
+    const result = await outcome(
+      adminDeleteCommentAction(form({ commentId: top, next: `/s/${startup.slug}/c/${top}` })),
+    );
     expect(result.redirect).toBe(`/s/${startup.slug}`);
     expect(await getCommentById(top)).toBeNull();
     expect(await getCommentById(kid)).toBeNull();
@@ -197,9 +189,9 @@ describe("editing", () => {
     expect((await outcome(adminUpdateCommentAction(null, form({ commentId: top, text: "x" })))).state?.error).toMatch(
       /2–2000/,
     );
-    expect((await outcome(adminUpdateCommentAction(null, form({ commentId: "nope", text: "fine text" })))).state?.error).toBe(
-      "Comment not found.",
-    );
+    expect(
+      (await outcome(adminUpdateCommentAction(null, form({ commentId: "nope", text: "fine text" })))).state?.error,
+    ).toBe("Comment not found.");
     const result = await outcome(adminUpdateCommentAction(null, form({ commentId: top, text: "Edited by admin." })));
     expect(result.redirect).toBe(`/s/${startup.slug}/c/${top}`);
     expect((await getCommentById(top))?.text).toBe("Edited by admin.");
@@ -248,7 +240,12 @@ describe("network siblings", () => {
       [alice.id, "0.0.0.0", "vote"],
     ];
     for (const [userId, ip, kind] of rows) {
-      await run("INSERT INTO rate_log (user_id, ip, kind, created_at) VALUES (?, ?, ?, ?)", [userId, ip, kind, Date.now()]);
+      await run("INSERT INTO rate_log (user_id, ip, kind, created_at) VALUES (?, ?, ?, ?)", [
+        userId,
+        ip,
+        kind,
+        Date.now(),
+      ]);
     }
     expect(await listIpSiblings(alice.id)).toEqual(["bob", "carol"]);
     expect(await listIpSiblings(dave.id)).toEqual([]);

@@ -27,10 +27,10 @@ async function ensureSchema(): Promise<void> {
   if ((await storedSchemaVersion()) === SCHEMA_VERSION) return;
   await applySchema();
   await migrate();
-  await run(
-    "INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value",
-    [SCHEMA_KEY, SCHEMA_VERSION],
-  );
+  await run("INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value", [
+    SCHEMA_KEY,
+    SCHEMA_VERSION,
+  ]);
 }
 
 // Runs once per server instance before the first query: two small reads when

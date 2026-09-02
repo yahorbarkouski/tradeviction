@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState, useOptimistic } from "react";
-import { voteAction, type ActionState } from "@/app/actions";
+import { voteAction } from "@/app/actions/comments";
+import type { ActionState } from "@/app/actions/lib";
 
 // The arrow flips and the count moves on the click; the server's re-render
 // confirms or reverts it when the action settles.

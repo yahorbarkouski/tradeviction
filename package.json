@@ -2,15 +2,33 @@
   "name": "tradeviction",
   "version": "0.1.0",
   "private": true,
+  "description": "Long or short startups with conviction. A prediction game where the stake is your reputation, not money.",
+  "license": "MIT",
+  "homepage": "https://github.com/yahorbarkouski/tradeviction#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yahorbarkouski/tradeviction.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yahorbarkouski/tradeviction/issues"
+  },
+  "engines": {
+    "node": ">=20.9.0"
+  },
   "scripts": {
     "dev": "docker compose up -d --wait && next dev",
     "db:up": "docker compose up -d --wait",
     "db:down": "docker compose down",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
-    "seed": "node scripts/seed-demo.mjs",
+    "lint": "eslint . --max-warnings 0",
+    "typecheck": "next typegen && tsc --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "knip": "knip",
+    "check": "npm run lint && npm run typecheck && npm run knip && npm run format:check",
     "test": "vitest run",
+    "test:unit": "vitest run --project unit",
     "test:watch": "vitest"
   },
   "dependencies": {
@@ -23,6 +41,7 @@
     "postcss": "^8.5.26",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "sharp": "0.35.4",
     "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
@@ -33,7 +52,8 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.3",
-    "testcontainers": "^12.1.0",
+    "knip": "^6.34.0",
+    "prettier": "^3.9.6",
     "typescript": "^5",
     "vitest": "^4.1.11"
   }

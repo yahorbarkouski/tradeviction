@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useActionState } from "react";
-import { adminUpdateStartupAction } from "@/app/actions";
+import { adminUpdateStartupAction } from "@/app/actions/startups";
 import { Honeypot } from "@/components/Honeypot";
 import type { Startup } from "@/lib/types";
 import { btn, fieldHead, ghost, input } from "@/lib/ui";

@@ -79,13 +79,7 @@ const PLATFORM_SUFFIX = [
   "carrd.co",
 ];
 
-const CODE_HOSTS = new Set([
-  "github.com",
-  "gitlab.com",
-  "bitbucket.org",
-  "codeberg.org",
-  "huggingface.co",
-]);
+const CODE_HOSTS = new Set(["github.com", "gitlab.com", "bitbucket.org", "codeberg.org", "huggingface.co"]);
 
 const CODE_SKIP = new Set([
   "about",
@@ -141,9 +135,7 @@ function pathParts(pathname: string): string[] {
 export function parseUrlish(raw: string): URL | null {
   const trimmed = raw.trim();
   if (!trimmed || /\s/.test(trimmed)) return null;
-  const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)
-    ? trimmed
-    : `https://${trimmed}`;
+  const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
   try {
     const url = new URL(withScheme);
     if (url.protocol !== "http:" && url.protocol !== "https:") return null;

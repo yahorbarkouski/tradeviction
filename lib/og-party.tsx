@@ -19,9 +19,7 @@ export type PartyIcons = Record<string, string | null>;
 
 export async function partyIcons(rows: PartyRow[]): Promise<PartyIcons> {
   const domains = [...new Set(rows.flatMap((row) => row.bets.slice(0, OG_CHIPS).map((bet) => bet.domain)))];
-  const pairs = await Promise.all(
-    domains.map(async (domain) => [domain, await faviconSrc(domain, 64)] as const),
-  );
+  const pairs = await Promise.all(domains.map(async (domain) => [domain, await faviconSrc(domain, 64)] as const));
   return Object.fromEntries(pairs);
 }
 
@@ -54,7 +52,6 @@ function Chip({ bet, src }: { bet: PartyBet; src: string | null }) {
       }}
     >
       {src ? (
-        // eslint-disable-next-line @next/next/no-img-element
         <img src={src} width={28} height={28} alt="" style={{ objectFit: "contain" }} />
       ) : (
         <div style={{ display: "flex", fontSize: 18, fontFamily: MONO, fontWeight: 500, color: INK }}>

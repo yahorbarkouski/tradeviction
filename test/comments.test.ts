@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { replyAction } from "@/app/actions";
-import { FRONT_PAGE, getCommentById, listFrontComments, listThread } from "@/lib/db/queries";
+import { replyAction } from "@/app/actions/comments";
+import { FRONT_PAGE, getCommentById, listFrontComments, listThread } from "@/lib/db/comments";
 import { PROVISIONAL_WEIGHT } from "@/lib/market";
 import { DAY_MS } from "@/lib/time";
 import { count, run } from "./harness/db";
@@ -228,8 +228,16 @@ describe("front page", () => {
     const startup = await makeStartup();
     const root = await thesis(alice, startup);
     const viewer = await makeUser();
-    await run("INSERT INTO comment_flags (comment_id, user_id, created_at) VALUES (?, ?, ?)", [root, viewer.id, Date.now()]);
-    await run("INSERT INTO comment_vouches (comment_id, user_id, created_at) VALUES (?, ?, ?)", [root, viewer.id, Date.now()]);
+    await run("INSERT INTO comment_flags (comment_id, user_id, created_at) VALUES (?, ?, ?)", [
+      root,
+      viewer.id,
+      Date.now(),
+    ]);
+    await run("INSERT INTO comment_vouches (comment_id, user_id, created_at) VALUES (?, ?, ?)", [
+      root,
+      viewer.id,
+      Date.now(),
+    ]);
     await vote(viewer, root);
     const seen = await getCommentById(root, viewer.id);
     expect(seen?.flagged).toBe(true);

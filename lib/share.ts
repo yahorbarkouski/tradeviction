@@ -1,12 +1,9 @@
-import {
-  cachedStartupBySlug,
-  cachedThread,
-  getBookLine,
-  getMarket,
-  getPlayerStats,
-  getUserByUsername,
-  listUserBook,
-} from "@/lib/db/queries";
+import { getBookLine, listUserBook } from "@/lib/db/book";
+import { cachedThread } from "@/lib/db/comments";
+import { getMarket } from "@/lib/db/markets";
+import { getPlayerStats } from "@/lib/db/scores";
+import { cachedStartupBySlug } from "@/lib/db/startups";
+import { getUserByUsername } from "@/lib/db/users";
 import type { Metadata } from "next";
 import { SITE_LINE } from "@/lib/copy";
 import { formatAlpha, formatRank } from "@/lib/format";

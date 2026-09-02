@@ -328,7 +328,12 @@ export function entryP(world: World, startupId: string, userId: string, openedAt
   return tallyAt(world.slices.get(startupId) ?? [], openedAt, counted(world), userId, priorOf(world, startupId)).p;
 }
 
-export function scoreLots(world: World, startupId: string, userId: string, lots: Lot[]): {
+export function scoreLots(
+  world: World,
+  startupId: string,
+  userId: string,
+  lots: Lot[],
+): {
   price: number;
   discovery: number;
   carry: number;

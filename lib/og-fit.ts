@@ -11,12 +11,12 @@ const ASCII_FIRST = 32;
 
 // Advance widths in em for code points 32..126.
 const INTER_500 = [
-  0.267, 0.304, 0.494, 0.639, 0.646, 0.993, 0.653, 0.313, 0.369, 0.369, 0.521, 0.667, 0.303, 0.462, 0.303, 0.37,
-  0.646, 0.415, 0.616, 0.627, 0.656, 0.603, 0.63, 0.571, 0.629, 0.63, 0.303, 0.315, 0.667, 0.667, 0.667, 0.527,
-  0.982, 0.709, 0.657, 0.733, 0.722, 0.603, 0.589, 0.748, 0.745, 0.272, 0.575, 0.688, 0.565, 0.913, 0.756, 0.767,
-  0.642, 0.769, 0.648, 0.646, 0.653, 0.74, 0.709, 1.003, 0.701, 0.696, 0.641, 0.369, 0.37, 0.369, 0.477, 0.463,
-  0.337, 0.568, 0.618, 0.577, 0.618, 0.587, 0.379, 0.62, 0.602, 0.252, 0.252, 0.559, 0.252, 0.888, 0.602, 0.604,
-  0.618, 0.618, 0.387, 0.539, 0.34, 0.602, 0.575, 0.829, 0.557, 0.575, 0.559, 0.44, 0.346, 0.44, 0.667,
+  0.267, 0.304, 0.494, 0.639, 0.646, 0.993, 0.653, 0.313, 0.369, 0.369, 0.521, 0.667, 0.303, 0.462, 0.303, 0.37, 0.646,
+  0.415, 0.616, 0.627, 0.656, 0.603, 0.63, 0.571, 0.629, 0.63, 0.303, 0.315, 0.667, 0.667, 0.667, 0.527, 0.982, 0.709,
+  0.657, 0.733, 0.722, 0.603, 0.589, 0.748, 0.745, 0.272, 0.575, 0.688, 0.565, 0.913, 0.756, 0.767, 0.642, 0.769, 0.648,
+  0.646, 0.653, 0.74, 0.709, 1.003, 0.701, 0.696, 0.641, 0.369, 0.37, 0.369, 0.477, 0.463, 0.337, 0.568, 0.618, 0.577,
+  0.618, 0.587, 0.379, 0.62, 0.602, 0.252, 0.252, 0.559, 0.252, 0.888, 0.602, 0.604, 0.618, 0.618, 0.387, 0.539, 0.34,
+  0.602, 0.575, 0.829, 0.557, 0.575, 0.559, 0.44, 0.346, 0.44, 0.667,
 ] as const;
 
 const EXTRA: Record<string, number> = {
@@ -178,21 +178,6 @@ export function truncateToWidth(text: string, fontSize: number, maxWidth: number
     }
     parts = parts.slice(0, -1);
   }
-}
-
-// One line of text: the largest size on the ladder that fits, else the
-// smallest size truncated.
-export function fitLine(
-  text: string,
-  maxWidth: number,
-  sizes: readonly number[],
-  type: Type = TITLE_TYPE,
-): { fontSize: number; text: string } {
-  const smallest = sizes[sizes.length - 1] ?? 16;
-  for (const size of sizes) {
-    if (measureText(text, size, type) <= maxWidth) return { fontSize: size, text };
-  }
-  return { fontSize: smallest, text: truncateToWidth(text, smallest, maxWidth, type) };
 }
 
 // Display sizes sit tight; body sizes open up a little.

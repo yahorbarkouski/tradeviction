@@ -11,7 +11,6 @@ import { heading } from "@/lib/ui";
 
 export const metadata: Metadata = { title: "login" };
 
-
 export default function LoginPage({ searchParams }: PageProps<"/login">) {
   return (
     <>

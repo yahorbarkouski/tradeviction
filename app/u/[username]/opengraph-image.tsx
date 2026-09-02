@@ -1,5 +1,5 @@
 import { HomeOg, ProfileOg, OG_SIZE, OG_TYPE, avatarSrc, bookIcons, ogImage } from "@/lib/og";
-import { alphaRank } from "@/lib/db/queries";
+import { alphaRank } from "@/lib/db/scores";
 import { loadProfileBook } from "@/lib/share";
 import { nowMs } from "@/lib/time";
 import { xAvatarUrl } from "@/lib/x";

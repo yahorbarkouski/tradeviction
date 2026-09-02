@@ -1,6 +1,6 @@
 import { cacheLife, cacheTag } from "next/cache";
-import { PulseBoard } from "@/components/StanceSplit";
-import { getMarket } from "@/lib/db/queries";
+import { PulseBoard } from "@/components/PulseBoard";
+import { getMarket } from "@/lib/db/markets";
 import { TAG, startupTag } from "@/lib/tags";
 import { nowMs } from "@/lib/time";
 
