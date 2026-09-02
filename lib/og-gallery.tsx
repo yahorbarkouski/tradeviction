@@ -69,7 +69,6 @@ function startup(name: string, domain: string): Startup {
     id: `gallery-${slug}`,
     slug,
     name,
-    description: "",
     url: `https://${domain}`,
     domain,
     source: "manual",

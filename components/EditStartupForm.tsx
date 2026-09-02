@@ -33,20 +33,6 @@ export function EditStartupForm({ startup }: { startup: Startup }) {
           defaultValue={startup.name}
         />
       </div>
-      <div>
-        <label className={fieldHead} htmlFor="description">
-          one-liner
-        </label>
-        <input
-          className={input}
-          id="description"
-          name="description"
-          required
-          minLength={8}
-          maxLength={200}
-          defaultValue={startup.description}
-        />
-      </div>
       {state?.error ? <p className="text-short">{state.error}</p> : null}
       <div className="flex items-center gap-5">
         <button className={btn} type="submit" disabled={pending}>

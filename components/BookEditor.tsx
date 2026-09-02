@@ -53,7 +53,6 @@ function rowsFrom(lines: BookLine[]): Row[] {
       slug: line.startup.slug,
       name: line.startup.name,
       domain: line.startup.domain,
-      description: line.startup.description,
       pulse: line.pulse,
     },
     line,
@@ -316,7 +315,7 @@ function EditorRow({
           {!line ? <span className="ml-1.5 font-mono text-sm text-mute">NEW</span> : null}
         </div>
         <div className="text-sm text-mute">
-          {line ? <LineStats line={line} /> : startup.description || startup.domain}
+          {line ? <LineStats line={line} /> : startup.domain}
         </div>
         <Take row={row} onChange={onChange} />
       </div>
@@ -630,7 +629,6 @@ function PickRow({
         {pick.pulse !== null ? (
           <span className="ml-1.5 font-mono text-sm text-mute tabular-nums">pulse {pick.pulse}</span>
         ) : null}
-        {pick.description ? <span className="block truncate text-sm text-mute">{pick.description}</span> : null}
       </span>
       <Side side="long" on={false} onClick={() => onPick("long")} />
       <Side side="short" on={false} onClick={() => onPick("short")} />

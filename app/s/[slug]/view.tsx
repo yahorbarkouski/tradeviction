@@ -70,9 +70,6 @@ async function StartupHead({ params }: { params: Params }) {
         </a>
         <div className="min-w-0">
           <h1 className={heading}>{startup.name}</h1>
-          {startup.description ? (
-            <p className="m-0 mb-1 text-base text-pretty">{startup.description}</p>
-          ) : null}
           <p className="m-0 text-sm text-mute">
             <a href={startup.url} rel="noreferrer" target="_blank">
               {startup.domain}

@@ -61,7 +61,7 @@ describe("assertCleanListing", () => {
       const fetchMock = vi.fn();
       vi.stubGlobal("fetch", fetchMock);
       await expect(
-        assertCleanListing({ name: "x", description: "y", domain: host.replace(/^https?:\/\//, ""), url: host }),
+        assertCleanListing({ name: "x", domain: host.replace(/^https?:\/\//, ""), url: host }),
       ).rejects.toThrow("That text isn't allowed.");
       expect(fetchMock).not.toHaveBeenCalled();
     },
@@ -69,7 +69,7 @@ describe("assertCleanListing", () => {
 
   it("lets an ordinary listing through without a key", async () => {
     await expect(
-      assertCleanListing({ name: "Acme", description: "Rockets", domain: "acme.com", url: "https://acme.com" }),
+      assertCleanListing({ name: "Acme", domain: "acme.com", url: "https://acme.com" }),
     ).resolves.toBeUndefined();
   });
 });

@@ -1,11 +1,11 @@
 import catalog from "@/data/catalog.json";
+import { run } from "@/lib/db";
 import { getMeta, insertStartup, purgeHnStartups, setMeta } from "@/lib/db/queries";
 import { fnv1a } from "@/lib/hash";
 
 type CatalogRow = {
   name: string;
   url: string;
-  description: string;
 };
 
 const rows = catalog as CatalogRow[];
@@ -22,13 +22,14 @@ export async function seedCatalog(): Promise<void> {
     await purgeHnStartups();
     await setMeta("purged_hn", "1");
   }
+  // Company one-liners were dropped from the site. The column stays, empty.
+  await run("UPDATE startups SET description = '' WHERE description <> ''");
   const now = Date.now();
   for (let i = 0; i < rows.length; i += 1) {
     const row = rows[i];
     if (!row) continue;
     await insertStartup({
       name: row.name,
-      description: row.description,
       url: row.url,
       source: "manual",
       sourceId: null,

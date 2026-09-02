@@ -80,10 +80,7 @@ export function SubmitForm() {
             <Favicon domain={exact.domain} name={exact.name} size={20} />
             {exact.name}
           </Link>
-          <div className="text-sm text-mute">
-            {exact.domain}
-            {exact.description ? ` · ${exact.description}` : ""}
-          </div>
+          <div className="text-sm text-mute">{exact.domain}</div>
           <p className="mt-2 text-sm text-mute">
             {exact.domain.includes("/")
               ? "This repo is already on the site."
@@ -104,7 +101,6 @@ export function SubmitForm() {
                     <span>
                       <strong>{hit.name}</strong>
                       <span className="text-mute"> {hit.domain}</span>
-                      {hit.description ? <div className="text-sm text-mute">{hit.description}</div> : null}
                     </span>
                   </Link>
                 </li>
@@ -116,12 +112,6 @@ export function SubmitForm() {
               company name
             </label>
             <input className={input} id="name" name="name" required minLength={2} maxLength={80} />
-          </div>
-          <div>
-            <label className={fieldHead} htmlFor="description">
-              one-liner
-            </label>
-            <input className={input} id="description" name="description" required minLength={8} maxLength={200} />
           </div>
           {state?.error ? <p className="text-short">{state.error}</p> : null}
           <button className={`${btn} self-start`} type="submit" disabled={pending}>

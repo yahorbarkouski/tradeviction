@@ -98,15 +98,10 @@ export async function assertClean(texts: Array<string | null | undefined>): Prom
   if (anyFlagged(body)) throw new GuardError(BLOCKED);
 }
 
-export async function assertCleanListing(input: {
-  name: string;
-  description: string;
-  domain: string;
-  url: string;
-}): Promise<void> {
+export async function assertCleanListing(input: { name: string; domain: string; url: string }): Promise<void> {
   if (isAdultHost(input.domain) || isAdultHost(input.url.replace(/^https?:\/\//i, ""))) {
     throw new GuardError(BLOCKED);
   }
-  const card = `Name: ${input.name}\nDomain: ${input.domain}\nURL: ${input.url}\nDescription: ${input.description}`;
+  const card = `Name: ${input.name}\nDomain: ${input.domain}\nURL: ${input.url}`;
   await assertClean([input.url, card]);
 }

@@ -192,7 +192,6 @@ describe("what a write expires", () => {
     const result = await submit(user, {
       url: "https://cached-startup.example",
       name: "Cached Startup",
-      description: "A company listed by the cache tests.",
     });
     expect(result.redirect).toMatch(/^\/s\//);
     expect(expired().sort()).toEqual([TAG.startups, TAG.world].sort());

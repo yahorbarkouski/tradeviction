@@ -129,7 +129,6 @@ export async function makeStartup(name?: string): Promise<Startup> {
   const label = name ?? `Startup ${startupSeq} ${randomUUID().slice(0, 6)}`;
   return insertStartup({
     name: label,
-    description: "A company used by the integration tests",
     url: `https://${slugify(label)}.com`,
     source: "manual",
     sourceId: null,

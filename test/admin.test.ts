@@ -211,23 +211,22 @@ describe("editing", () => {
     const other = await makeStartup("Other");
     await actAs(root);
     const clash = await outcome(
-      adminUpdateStartupAction(null, form({ startupId: startup.id, name: "Acme", description: "A fine company", url: other.url })),
+      adminUpdateStartupAction(null, form({ startupId: startup.id, name: "Acme", url: other.url })),
     );
     expect(clash.state?.error).toBe("That domain is already listed.");
     const bad = await outcome(
-      adminUpdateStartupAction(null, form({ startupId: startup.id, name: "A", description: "A fine company", url: startup.url })),
+      adminUpdateStartupAction(null, form({ startupId: startup.id, name: "A", url: startup.url })),
     );
     expect(bad.state?.error).toMatch(/Name should be/);
     const ok = await outcome(
       adminUpdateStartupAction(
         null,
-        form({ startupId: startup.id, name: "Acme Corp", description: "Now with a longer line", url: "https://acme-corp-new.com/x" }),
+        form({ startupId: startup.id, name: "Acme Corp", url: "https://acme-corp-new.com/x" }),
       ),
     );
     expect(ok.redirect).toBe(`/s/${startup.slug}`);
     const after = await getStartupById(startup.id);
     expect(after?.name).toBe("Acme Corp");
-    expect(after?.description).toBe("Now with a longer line");
     expect(after?.domain).toBe("acme-corp-new.com");
     expect(after?.url).toBe("https://acme-corp-new.com");
     expect(after?.slug).toBe(startup.slug);

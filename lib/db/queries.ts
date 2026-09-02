@@ -106,7 +106,6 @@ function parseStartup(row: Record<string, unknown>): Startup {
     id: str(row, "id"),
     slug: str(row, "slug"),
     name: str(row, "name"),
-    description: str(row, "description"),
     url: str(row, "url"),
     domain: str(row, "domain"),
     source: sourceRaw,
@@ -172,7 +171,7 @@ function parseEvent(row: Record<string, unknown>): BookEvent {
 }
 
 const STARTUP_SELECT = `
-  SELECT s.id, s.slug, s.name, s.description, s.url, s.domain, s.source, s.source_id, s.created_at
+  SELECT s.id, s.slug, s.name, s.url, s.domain, s.source, s.source_id, s.created_at
   FROM startups s
 `;
 
@@ -329,9 +328,10 @@ async function uniqueSlug(name: string): Promise<string> {
   return slug;
 }
 
+// The description column stays in the table but is always empty: the site
+// dropped company one-liners.
 export async function insertStartup(input: {
   name: string;
-  description: string;
   url: string;
   source: Source;
   sourceId: string | null;
@@ -357,14 +357,13 @@ export async function insertStartup(input: {
   const slug = await uniqueSlug(input.name);
   await run(
     `INSERT INTO startups (id, slug, name, description, url, domain, source, source_id, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, slug, input.name, input.description, url, domain, input.source, input.sourceId, input.createdAt],
+     VALUES (?, ?, ?, '', ?, ?, ?, ?, ?)`,
+    [id, slug, input.name, url, domain, input.source, input.sourceId, input.createdAt],
   );
   return {
     id,
     slug,
     name: input.name,
-    description: input.description,
     url,
     domain,
     source: input.source,
@@ -404,7 +403,6 @@ export async function purgeHnStartups(): Promise<void> {
 export async function updateStartup(input: {
   id: string;
   name: string;
-  description: string;
   url: string;
 }): Promise<Startup> {
   const current = await getStartupById(input.id);
@@ -413,9 +411,8 @@ export async function updateStartup(input: {
   if (!ident) throw new AdminError("Need a real http(s) URL or domain.");
   const clash = await getStartupByDomain(ident.domain);
   if (clash && clash.id !== input.id) throw new AdminError("That domain is already listed.");
-  await run("UPDATE startups SET name = ?, description = ?, url = ?, domain = ? WHERE id = ?", [
+  await run("UPDATE startups SET name = ?, url = ?, domain = ? WHERE id = ?", [
     input.name,
-    input.description,
     ident.canonicalUrl,
     ident.domain,
     input.id,
@@ -1510,7 +1507,6 @@ export async function lookupStartups(q: string): Promise<LookupHit[]> {
       id: exact.id,
       slug: exact.slug,
       name: exact.name,
-      description: exact.description,
       domain: exact.domain,
       url: exact.url,
       exact: true,
@@ -1524,7 +1520,6 @@ export async function lookupStartups(q: string): Promise<LookupHit[]> {
       id: startup.id,
       slug: startup.slug,
       name: startup.name,
-      description: startup.description,
       domain: startup.domain,
       url: startup.url,
       exact: ident?.domain === startup.domain,

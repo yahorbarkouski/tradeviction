@@ -7,7 +7,6 @@ const SAMPLE: Startup = {
   id: "preview",
   slug: "cursor",
   name: "Cursor",
-  description: "",
   url: "https://cursor.com",
   domain: "cursor.com",
   source: "manual",

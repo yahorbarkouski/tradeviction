@@ -108,12 +108,7 @@ async function rejectDirty(texts: Array<string | null | undefined>): Promise<Act
   }
 }
 
-async function rejectDirtyListing(input: {
-  name: string;
-  description: string;
-  domain: string;
-  url: string;
-}): Promise<ActionState> {
+async function rejectDirtyListing(input: { name: string; domain: string; url: string }): Promise<ActionState> {
   try {
     await assertCleanListing(input);
     return null;
@@ -196,17 +191,13 @@ export async function submitStartupAction(_prev: ActionState, formData: FormData
   if (!user) redirect("/login?next=/submit");
   if (honeypotFilled(formData)) redirect("/");
   const name = String(formData.get("name") ?? "").trim();
-  const description = String(formData.get("description") ?? "").trim();
   const ident = identityFromUrl(String(formData.get("url") ?? ""));
   if (!ident) return { error: "Need a real http(s) URL or domain." };
   if (name.length < 2 || name.length > 80) return { error: "Name should be 2–80 characters." };
-  if (description.length < 8 || description.length > 200) {
-    return { error: "One-liner should be 8–200 characters." };
-  }
   // The duplicate lookup and the moderation call do not depend on each other.
   const [existing, dirty] = await Promise.all([
     getStartupByDomain(ident.domain),
-    rejectDirtyListing({ name, description, domain: ident.domain, url: ident.canonicalUrl }),
+    rejectDirtyListing({ name, domain: ident.domain, url: ident.canonicalUrl }),
   ]);
   if (existing) redirect(`/s/${existing.slug}`);
   if (dirty) return dirty;
@@ -215,7 +206,6 @@ export async function submitStartupAction(_prev: ActionState, formData: FormData
     startup = await guarded("submit", user, () =>
       insertStartup({
         name,
-        description,
         url: ident.canonicalUrl,
         source: "manual",
         sourceId: null,
@@ -412,28 +402,14 @@ export async function adminUpdateStartupAction(_prev: ActionState, formData: For
   const startup = await getStartupById(String(formData.get("startupId") ?? ""));
   if (!startup) return { error: "Startup not found." };
   const name = String(formData.get("name") ?? "").trim();
-  const description = String(formData.get("description") ?? "").trim();
   if (name.length < 2 || name.length > 80) return { error: "Name should be 2–80 characters." };
-  if (description.length < 8 || description.length > 200) {
-    return { error: "One-liner should be 8–200 characters." };
-  }
   const ident = identityFromUrl(String(formData.get("url") ?? ""));
   if (!ident) return { error: "Need a real http(s) URL or domain." };
-  const dirty = await rejectDirtyListing({
-    name,
-    description,
-    domain: ident.domain,
-    url: ident.canonicalUrl,
-  });
+  const dirty = await rejectDirtyListing({ name, domain: ident.domain, url: ident.canonicalUrl });
   if (dirty) return dirty;
   let updated;
   try {
-    updated = await updateStartup({
-      id: startup.id,
-      name,
-      description,
-      url: ident.canonicalUrl,
-    });
+    updated = await updateStartup({ id: startup.id, name, url: ident.canonicalUrl });
   } catch (error) {
     if (error instanceof AdminError) return { error: error.message };
     throw error;

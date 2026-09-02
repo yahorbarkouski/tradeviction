@@ -4,7 +4,7 @@ import { ensureCatalog } from "@/lib/catalog";
 import { identityFromUrl } from "@/lib/domain";
 import { countStartups, getStartupBySlug, insertStartup, lookupStartups } from "@/lib/db/queries";
 import { DAY_MS } from "@/lib/time";
-import { count } from "./harness/db";
+import { count, getRow, run } from "./harness/db";
 import { actAs, clock, form, makeStartup, makeUser, outcome, submit } from "./harness/factories";
 
 const HOUR = 3_600_000;
@@ -15,7 +15,6 @@ describe("submitting a company", () => {
     const result = await submit(user, {
       url: "https://www.Linear.app/pricing?ref=x",
       name: "Linear",
-      description: "Issue tracking for teams that ship.",
     });
     expect(result.redirect).toBe("/s/linear");
     const startup = await getStartupBySlug("linear");
@@ -28,29 +27,26 @@ describe("submitting a company", () => {
   it("redirects to the existing listing when the domain is already known", async () => {
     const existing = await makeStartup("Acme");
     const user = await makeUser();
-    const result = await submit(user, { url: "http://acme.com/about", name: "Acme Again", description: "Duplicate attempt." });
+    const result = await submit(user, { url: "http://acme.com/about", name: "Acme Again" });
     expect(result.redirect).toBe(`/s/${existing.slug}`);
     expect(await countStartups()).toBe(1);
     expect(await count("rate_log", "kind = 'submit'")).toBe(0);
   });
 
-  it("validates the url, name, and one-liner", async () => {
+  it("validates the url and name", async () => {
     const user = await makeUser();
-    expect((await submit(user, { url: "not a url", name: "Fine", description: "A fine company." })).state?.error).toBe(
+    expect((await submit(user, { url: "not a url", name: "Fine" })).state?.error).toBe(
       "Need a real http(s) URL or domain.",
     );
-    expect((await submit(user, { url: "fine.com", name: "A", description: "A fine company." })).state?.error).toMatch(
+    expect((await submit(user, { url: "fine.com", name: "A" })).state?.error).toMatch(
       /Name should be/,
-    );
-    expect((await submit(user, { url: "fine.com", name: "Fine", description: "short" })).state?.error).toMatch(
-      /One-liner should be/,
     );
     expect(await countStartups()).toBe(0);
   });
 
   it("blocks adult hosts without any moderation key", async () => {
     const user = await makeUser();
-    const result = await submit(user, { url: "https://pornhub.com", name: "Nope", description: "Not on this board." });
+    const result = await submit(user, { url: "https://pornhub.com", name: "Nope" });
     expect(result.state?.error).toBe("That text isn't allowed.");
     expect(await countStartups()).toBe(0);
   });
@@ -64,14 +60,14 @@ describe("submitting a company", () => {
     ];
     for (const [age, gap] of cases) {
       const user = await makeUser({ createdAt: Date.now() - age });
-      expect((await submit(user, { url: `first-${age}.com`, name: "First", description: "A first listing." })).redirect).toMatch(
+      expect((await submit(user, { url: `first-${age}.com`, name: "First" })).redirect).toMatch(
         /^\/s\//,
       );
       expect(
-        (await submit(user, { url: `second-${age}.com`, name: "Second", description: "A second listing." })).state?.error,
+        (await submit(user, { url: `second-${age}.com`, name: "Second" })).state?.error,
       ).toMatch(/too fast/);
       clock.advance(gap);
-      expect((await submit(user, { url: `second-${age}.com`, name: "Second", description: "A second listing." })).redirect).toMatch(
+      expect((await submit(user, { url: `second-${age}.com`, name: "Second" })).redirect).toMatch(
         /^\/s\//,
       );
     }
@@ -80,11 +76,11 @@ describe("submitting a company", () => {
   it("sends anonymous users to login and drops honeypot submissions", async () => {
     await actAs(null);
     const anonymous = await outcome(
-      submitStartupAction(null, form({ url: "fine.com", name: "Fine", description: "A fine company." })),
+      submitStartupAction(null, form({ url: "fine.com", name: "Fine" })),
     );
     expect(anonymous.redirect).toBe("/login?next=/submit");
     const user = await makeUser();
-    const bot = await submit(user, { url: "fine.com", name: "Fine", description: "A fine company.", website: "spam" });
+    const bot = await submit(user, { url: "fine.com", name: "Fine", website: "spam" });
     expect(bot.redirect).toBe("/");
     expect(await countStartups()).toBe(0);
   });
@@ -108,7 +104,7 @@ describe("site identity", () => {
 
 describe("insertStartup", () => {
   it("dedupes by domain and source id, and suffixes clashing slugs", async () => {
-    const base = { description: "d", source: "manual" as const, sourceId: null, createdAt: Date.now() };
+    const base = { source: "manual" as const, sourceId: null, createdAt: Date.now() };
     const first = await insertStartup({ ...base, name: "Same Name", url: "https://one.com" });
     const second = await insertStartup({ ...base, name: "Same Name", url: "https://two.com" });
     expect(first.slug).toBe("same-name");
@@ -147,5 +143,14 @@ describe("catalog", () => {
     await ensureCatalog();
     expect(await countStartups()).toBe(first);
     expect(await getStartupBySlug("openai")).not.toBeNull();
+  });
+
+  it("blanks any one-liner left in the table", async () => {
+    await run(
+      `INSERT INTO startups (id, slug, name, description, url, domain, source, source_id, created_at)
+       VALUES ('old', 'old', 'Old', 'Had a one-liner', 'https://old.example', 'old.example', 'manual', NULL, 1)`,
+    );
+    await ensureCatalog();
+    expect(await getRow("SELECT description FROM startups WHERE id = 'old'")).toEqual({ description: "" });
   });
 });

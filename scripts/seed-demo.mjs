@@ -186,7 +186,7 @@ try {
   const now = Date.now();
   for (let i = 0; i < catalog.length; i += 1) {
     const row = catalog[i];
-    ensureStartup(row.name, row.url, row.description, now - i * 3_600_000);
+    ensureStartup(row.name, row.url, "", now - i * 3_600_000);
   }
 
   ensureStartup(

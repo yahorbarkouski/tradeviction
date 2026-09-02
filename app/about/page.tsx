@@ -40,7 +40,7 @@ export default function AboutPage() {
           Explain your position with arguments to earn <Term id="karma" />.
         </p>
         <p>
-          Make <Link href="/parties" className="text-mute">parties</Link> to compare your vision with friends. 
+          Make <Link href="/parties" className="text-mute">parties</Link> to share your vision with friends. 
         </p>
       </div>
     </article>

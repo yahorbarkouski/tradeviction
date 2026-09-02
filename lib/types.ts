@@ -32,7 +32,6 @@ export type Startup = {
   id: string;
   slug: string;
   name: string;
-  description: string;
   url: string;
   domain: string;
   source: Source;
@@ -44,19 +43,17 @@ export type LookupHit = {
   id: string;
   slug: string;
   name: string;
-  description: string;
   domain: string;
   url: string;
   exact: boolean;
 };
 
-// A startup the Book editor offers as somewhere to put Conviction.
+// A company the Book editor offers as somewhere to put Conviction.
 export type StartupPick = {
   id: string;
   slug: string;
   name: string;
   domain: string;
-  description: string;
   pulse: number;
 };
 
@@ -266,7 +263,6 @@ export function isLookupHit(value: unknown): value is LookupHit {
     typeof hit.id === "string" &&
     typeof hit.slug === "string" &&
     typeof hit.name === "string" &&
-    typeof hit.description === "string" &&
     typeof hit.domain === "string" &&
     typeof hit.url === "string" &&
     typeof hit.exact === "boolean"

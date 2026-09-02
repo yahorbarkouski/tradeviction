@@ -249,7 +249,6 @@ async function hotPicks(): Promise<StartupPick[]> {
     slug: item.slug,
     name: item.name,
     domain: item.domain,
-    description: item.description,
     pulse: item.market.pulse,
   }));
 }
