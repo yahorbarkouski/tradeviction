@@ -1,5 +1,6 @@
 import catalog from "@/data/catalog.json";
 import { getMeta, insertStartup, purgeHnStartups, setMeta } from "@/lib/db/queries";
+import { fnv1a } from "@/lib/hash";
 
 type CatalogRow = {
   name: string;
@@ -7,12 +8,20 @@ type CatalogRow = {
   description: string;
 };
 
-export async function ensureCatalog(): Promise<void> {
+const rows = catalog as CatalogRow[];
+
+const CATALOG_KEY = "catalog";
+
+// Changes whenever data/catalog.json changes, so a revised catalog is seeded
+// exactly once instead of being re-checked on every request.
+export const CATALOG_VERSION = `catalog-${fnv1a(JSON.stringify(rows))}`;
+
+// Inserts every catalog row that is missing, then records the catalog version.
+export async function seedCatalog(): Promise<void> {
   if ((await getMeta("purged_hn")) !== "1") {
     await purgeHnStartups();
     await setMeta("purged_hn", "1");
   }
-  const rows = catalog as CatalogRow[];
   const now = Date.now();
   for (let i = 0; i < rows.length; i += 1) {
     const row = rows[i];
@@ -26,4 +35,11 @@ export async function ensureCatalog(): Promise<void> {
       createdAt: now - i * 3_600_000,
     });
   }
+  await setMeta(CATALOG_KEY, CATALOG_VERSION);
+}
+
+// Seeds only when the stored version differs from the catalog in the code.
+export async function ensureCatalog(): Promise<void> {
+  if ((await getMeta(CATALOG_KEY)) === CATALOG_VERSION) return;
+  await seedCatalog();
 }

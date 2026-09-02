@@ -19,13 +19,13 @@ import {
 } from "./harness/factories";
 
 describe("replies", () => {
-  it("adds the reply under its parent and redirects to the anchor", async () => {
+  it("adds the reply under its parent and re-renders the page in place", async () => {
     const alice = await makeUser();
     const startup = await makeStartup();
     const root = await thesis(alice, startup);
     const bob = await makeUser();
     const result = await reply(bob, root, "I agree with this.");
-    expect(result.redirect).toBe(`/s/${startup.slug}#${root}`);
+    expect(result).toEqual({ redirect: null, state: null });
     const thread = await listThread(startup.id, null);
     expect(thread).toHaveLength(1);
     expect(thread[0]?.kids.map((kid) => kid.text)).toEqual(["I agree with this."]);
@@ -33,13 +33,13 @@ describe("replies", () => {
     expect(await count("rate_log", "kind = 'comment' AND user_id = ?", [bob.id])).toBe(1);
   });
 
-  it("keeps a permalink destination as it is", async () => {
+  it("stays on a permalink page as well", async () => {
     const alice = await makeUser();
     const startup = await makeStartup();
     const root = await thesis(alice, startup);
     const bob = await makeUser();
     const dest = `/s/${startup.slug}/c/${root}`;
-    expect((await reply(bob, root, "Fair point.", dest)).redirect).toBe(dest);
+    expect(await reply(bob, root, "Fair point.", dest)).toEqual({ redirect: null, state: null });
   });
 
   it("validates the text and the parent", async () => {
@@ -60,17 +60,17 @@ describe("replies", () => {
     const root = await thesis(alice, startup);
 
     const fresh = await makeUser();
-    expect((await reply(fresh, root, "first from fresh")).redirect).not.toBeNull();
+    expect((await reply(fresh, root, "first from fresh")).state).toBeNull();
     expect((await reply(fresh, root, "second from fresh")).state?.error).toMatch(/Retry in 10 minutes/);
     clock.advance(10 * 60_000);
-    expect((await reply(fresh, root, "second from fresh")).redirect).not.toBeNull();
+    expect((await reply(fresh, root, "second from fresh")).state).toBeNull();
 
     const mid = await makeUser({ createdAt: Date.now() - 3 * DAY_MS });
-    expect((await reply(mid, root, "first from mid")).redirect).not.toBeNull();
+    expect((await reply(mid, root, "first from mid")).state).toBeNull();
     expect((await reply(mid, root, "second from mid")).state?.error).toMatch(/Retry in 3 minutes/);
 
     const old = await makeUser({ createdAt: Date.now() - 8 * DAY_MS });
-    expect((await reply(old, root, "first from old")).redirect).not.toBeNull();
+    expect((await reply(old, root, "first from old")).state).toBeNull();
     expect((await reply(old, root, "second from old")).state?.error).toMatch(/Retry in 30 seconds/);
   });
 

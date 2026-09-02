@@ -15,11 +15,15 @@ Set `DATABASE_URL` to a Neon connection string and `SESSION_SECRET` to a long ra
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). The catalog seeds itself on the home page.
+Open [http://localhost:3000](http://localhost:3000). The schema and the catalog are applied the first time a server instance touches the database, and only when their version markers in the `meta` table differ from the code.
 
 ## Stack
 
 Next.js on Vercel. Postgres on Neon. Auth is username plus password in a signed cookie.
+
+## Speed
+
+Pages use Cache Components: every route ships a static shell, and whatever depends on the URL or the viewer streams into it. Shared reads (`cachedWorldData`, `cachedFrontPage`, `cachedThread`, `cachedFeed`, `cachedLeaders`, `cachedStartupBySlug`) carry cache tags from `lib/tags.ts`; every server action expires the tags its write touched with `updateTag`, so the re-render that ships with the action's response already shows the write. Viewer-specific state (votes, flags, standing, the header numbers) is read behind `use cache: private`, kept only in the browser, and overlaid on the shared lists client side. Votes, replies, and position changes render optimistically and are confirmed by the server's re-render. Links to feeds and the leaderboard prefetch their content; links into a startup prefetch it on hover.
 
 ## Tests
 

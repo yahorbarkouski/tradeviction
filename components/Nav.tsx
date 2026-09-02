@@ -5,12 +5,14 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { cx } from "@/lib/cx";
 
+// Feed and leaderboard links carry URL data, so they prefetch their content
+// per link; the rest ride on the shared App Shell.
 const LINKS = [
-  { href: "/?sort=hot", label: "hot" },
-  { href: "/?sort=new", label: "new" },
-  { href: "/top", label: "top" },
-  { href: "/about", label: "about" },
-  { href: "/submit", label: "submit" },
+  { href: "/?sort=hot", label: "hot", prefetch: true },
+  { href: "/?sort=new", label: "new", prefetch: true },
+  { href: "/top", label: "top", prefetch: true },
+  { href: "/about", label: "about", prefetch: null },
+  { href: "/submit", label: "submit", prefetch: null },
 ] as const;
 
 function isActive(href: string, pathname: string, sort: string | null): boolean {
@@ -33,6 +35,7 @@ function NavBar({
         <Link
           key={link.href}
           href={link.href}
+          prefetch={link.prefetch}
           className={cx(
             "inline-flex min-h-10 items-center md:min-h-0",
             isActive(link.href, pathname, sort) && "text-ink",

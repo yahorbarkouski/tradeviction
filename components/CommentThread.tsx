@@ -10,27 +10,23 @@ import {
   type ThreadSort,
 } from "@/lib/thread";
 import { cx } from "@/lib/cx";
-import type { ThreadNode, User } from "@/lib/types";
+import type { ThreadNode } from "@/lib/types";
 
 const tab = "text-mute hover:text-ink hover:no-underline";
 const tabOn = "text-ink underline decoration-1 underline-offset-4 hover:text-ink hover:underline";
 
 export function CommentThread({
   nodes,
-  viewer,
   now,
   slug,
   side: initialSide,
   sort: initialSort,
-  karma,
 }: {
   nodes: ThreadNode[];
-  viewer: User | null;
   now: number;
   slug: string;
   side: ThreadSide;
   sort: ThreadSort;
-  karma: number;
 }) {
   const [side, setSide] = useState(initialSide);
   const [sort, setSort] = useState(initialSort);
@@ -88,15 +84,7 @@ export function CommentThread({
       {filtered.length === 0 ? (
         <p className="text-mute">{empty}</p>
       ) : (
-        <ThreadList
-          key={`${side}-${sort}`}
-          nodes={filtered}
-          viewer={viewer}
-          now={now}
-          href={href}
-          slug={slug}
-          karma={karma}
-        />
+        <ThreadList key={`${side}-${sort}`} nodes={filtered} now={now} href={href} slug={slug} />
       )}
     </div>
   );

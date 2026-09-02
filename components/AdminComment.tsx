@@ -2,26 +2,24 @@
 
 import { useActionState, useState } from "react";
 import { adminDeleteCommentAction, adminUpdateCommentAction } from "@/app/actions";
-import { isAdmin } from "@/lib/admin";
 import { area, btn, ghost } from "@/lib/ui";
-import type { User } from "@/lib/types";
 
 const pipe =
   "cursor-pointer border-0 bg-transparent p-0 font-sans text-sm text-mute hover:underline decoration-1 underline-offset-[0.12em]";
 
 export function AdminCommentMeta({
   commentId,
-  viewer,
+  admin,
   next,
   onEdit,
 }: {
   commentId: string;
-  viewer: User | null;
+  admin: boolean;
   next: string;
   onEdit: () => void;
 }) {
   const [confirm, setConfirm] = useState(false);
-  if (!isAdmin(viewer)) return null;
+  if (!admin) return null;
   return (
     <>
       {" | "}

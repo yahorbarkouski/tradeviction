@@ -1,7 +1,7 @@
-import { ensureCatalog } from "@/lib/catalog";
+import { seedCatalog } from "@/lib/catalog";
 
-export const runtime = "nodejs";
-
+// Cron entry point: re-inserts any catalog company that went missing, whatever
+// the stored catalog version says.
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
   if (secret) {
@@ -12,6 +12,6 @@ export async function GET(request: Request) {
   } else if (process.env.NODE_ENV === "production") {
     return new Response("Unauthorized", { status: 401 });
   }
-  await ensureCatalog();
+  await seedCatalog();
   return Response.json({ ok: true });
 }

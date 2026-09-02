@@ -1,21 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
+import { MarksProvider } from "@/components/Marks";
+import { ThreadSkeleton } from "@/components/Skeleton";
 import { ThreadList } from "@/components/ThreadList";
-import { getCurrentUser } from "@/lib/auth";
-import { seesDead } from "@/lib/admin";
-import { getKarma, listThread } from "@/lib/db/queries";
 import { clip, loadThesis, OG_SIZE, thesisAlt } from "@/lib/share";
 import { commentPath, findThreadNode } from "@/lib/thread";
-import { nowMs } from "@/lib/time";
+import { cachedNow } from "@/lib/clock";
+import { getViewerMarks } from "@/lib/viewer";
 
-export const dynamic = "force-dynamic";
-
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ slug: string; id: string }>;
-}): Promise<Metadata> {
+export async function generateMetadata({ params }: PageProps<"/s/[slug]/c/[id]">): Promise<Metadata> {
   const { slug, id } = await params;
   const loaded = await loadThesis(slug, id);
   if (!loaded) return { title: "not found" };
@@ -36,18 +31,19 @@ export async function generateMetadata({
   };
 }
 
-export default async function ThesisPage({
-  params,
-}: {
-  params: Promise<{ slug: string; id: string }>;
-}) {
+export default function ThesisPage({ params }: PageProps<"/s/[slug]/c/[id]">) {
+  return (
+    <Suspense fallback={<ThreadSkeleton />}>
+      <ThesisBody params={params} />
+    </Suspense>
+  );
+}
+
+async function ThesisBody({ params }: Pick<PageProps<"/s/[slug]/c/[id]">, "params">) {
   const { slug, id } = await params;
   const loaded = await loadThesis(slug, id);
   if (!loaded) notFound();
-  const now = nowMs();
-  const viewer = await getCurrentUser();
-  const thread = await listThread(loaded.startup.id, viewer?.id ?? null, seesDead(viewer), now);
-  const node = findThreadNode(thread, id) ?? { ...loaded.comment, kids: [] };
+  const node = findThreadNode(loaded.thread, id) ?? { ...loaded.comment, kids: [] };
   const href = commentPath(slug, id);
   return (
     <>
@@ -58,14 +54,9 @@ export default async function ThesisPage({
         {" · "}
         <Link href={`/s/${slug}`}>all comments</Link>
       </p>
-      <ThreadList
-        nodes={[node]}
-        viewer={viewer}
-        now={now}
-        href={href}
-        slug={slug}
-        karma={viewer ? await getKarma(viewer.id, now) : 0}
-      />
+      <MarksProvider marks={getViewerMarks()}>
+        <ThreadList nodes={[node]} now={await cachedNow()} href={href} slug={slug} />
+      </MarksProvider>
     </>
   );
 }

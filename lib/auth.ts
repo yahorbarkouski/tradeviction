@@ -1,6 +1,8 @@
 import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { cacheLife, cacheTag } from "next/cache";
 import { cookies } from "next/headers";
 import { getUserById } from "@/lib/db/queries";
+import { TAG } from "@/lib/tags";
 import type { User } from "@/lib/types";
 
 const COOKIE = "los_session";
@@ -94,11 +96,22 @@ export async function clearSession(): Promise<void> {
   store.delete(COOKIE);
 }
 
-export async function getCurrentUser(): Promise<User | null> {
+// Plain session read for Server Actions, which must never trust a cached copy.
+export async function readCurrentUser(): Promise<User | null> {
   const store = await cookies();
   const token = store.get(COOKIE)?.value;
   if (!token) return null;
   const session = decodeSession(token);
   if (!session) return null;
   return await getUserById(session.userId);
+}
+
+// Session read for rendering. The result is kept only in the browser's router
+// cache, which lets the prefetched App Shell already carry the signed-in
+// state. Every action that changes the viewer calls updateTag("session").
+export async function getCurrentUser(): Promise<User | null> {
+  "use cache: private";
+  cacheLife({ stale: 300 });
+  cacheTag(TAG.session);
+  return readCurrentUser();
 }

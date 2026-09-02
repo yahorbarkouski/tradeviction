@@ -19,15 +19,18 @@ export function Favicon({
   const sources = iconSources(domain, 64);
   const [index, setIndex] = useState(0);
   const [ready, setReady] = useState(false);
+  const [shownDomain, setShownDomain] = useState(domain);
   const skip = useRef(false);
   const mark = iconMark(name, domain, size);
   const src = sources[index];
   const imgRef = useRef<HTMLImageElement>(null);
 
-  useEffect(() => {
+  // A new domain starts the source list over.
+  if (shownDomain !== domain) {
+    setShownDomain(domain);
     setIndex(0);
     setReady(false);
-  }, [domain]);
+  }
 
   useEffect(() => {
     skip.current = false;

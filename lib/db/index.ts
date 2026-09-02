@@ -1,8 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { Pool as NeonPool, type PoolClient as NeonClient } from "@neondatabase/serverless";
 import { Pool as PgPool, type PoolClient as PgClient } from "pg";
-import { SCHEMA } from "@/lib/db/schema";
-import { migrate } from "@/lib/db/migrate";
 
 export type SqlValue = string | number | null | bigint | boolean;
 
@@ -14,6 +12,10 @@ type Queryable = {
 type QueryResult = { rows: Record<string, unknown>[] };
 
 const txStore = new AsyncLocalStorage<DbClient>();
+
+// Set while the schema and catalog bootstrap runs, so the queries it issues
+// skip the readiness gate instead of waiting on themselves.
+const bootStore = new AsyncLocalStorage<true>();
 
 const globalForDb = globalThis as typeof globalThis & {
   __losPool?: DbPool;
@@ -57,28 +59,20 @@ async function query(sql: string, params: SqlValue[] = []): Promise<QueryResult>
   return { rows: result.rows as Record<string, unknown>[] };
 }
 
-async function rawQuery(sql: string, params: SqlValue[] = []): Promise<QueryResult> {
-  return query(toPg(sql), params);
-}
-
-async function applySchema(): Promise<void> {
-  const statements = SCHEMA.split(";")
-    .map((part) => part.trim())
-    .filter(Boolean);
-  for (const statement of statements) {
-    await (getPool() as unknown as Queryable).query(statement);
-  }
-}
-
+// One version check per server instance. The full schema replay and catalog
+// seed only run when the stored versions differ from the code.
 async function ensureReady(): Promise<void> {
+  if (bootStore.getStore()) return;
   if (!globalForDb.__losReady) {
-    globalForDb.__losReady = (async () => {
-      await applySchema();
-      await migrate(rawQuery);
-    })().catch((error: unknown) => {
-      globalForDb.__losReady = undefined;
-      throw error;
-    });
+    globalForDb.__losReady = bootStore
+      .run(true, async () => {
+        const { bootstrap } = await import("@/lib/db/bootstrap");
+        await bootstrap();
+      })
+      .catch((error: unknown) => {
+        globalForDb.__losReady = undefined;
+        throw error;
+      });
   }
   await globalForDb.__losReady;
 }

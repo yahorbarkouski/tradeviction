@@ -1,44 +1,29 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
-import type { ActionState } from "@/app/actions";
-import { voteAction } from "@/app/actions";
 import { cx } from "@/lib/cx";
 
 const note = "whitespace-nowrap text-xs text-short";
 
-export function Vote({
-  commentId,
-  own,
-  voted,
-  viewer,
-  next,
-  compact = false,
-}: {
+type VoteProps = {
   commentId: string;
   own: boolean;
   voted: boolean;
-  viewer: { id: string } | null;
+  signedIn: boolean;
   next: string;
+  action: (formData: FormData) => void;
+  pending: boolean;
+  error: string | null;
   compact?: boolean;
-}) {
-  const [state, action, pending] = useActionState(voteAction, null as ActionState);
-  if (compact) {
-    return (
-      <CompactVote
-        commentId={commentId}
-        own={own}
-        voted={voted}
-        viewer={viewer}
-        next={next}
-      />
-    );
-  }
+};
+
+export function Vote(props: VoteProps) {
+  if (props.compact) return <CompactVote {...props} />;
+  const { commentId, own, voted, signedIn, next, action, pending, error } = props;
   const btn =
     "inline-flex h-7 w-4 cursor-pointer items-center justify-center border-0 bg-transparent p-0 font-mono text-base leading-none hover:text-ink disabled:cursor-default";
   if (own) return null;
-  if (!viewer) {
+  if (!signedIn) {
     return (
       <span className="inline-flex items-center gap-px">
         <Link
@@ -81,9 +66,9 @@ export function Vote({
       >
         −
       </button>
-      {state?.error ? (
+      {error ? (
         <span role="status" className={cx(note, "ml-1.5")}>
-          {state.error}
+          {error}
         </span>
       ) : null}
     </form>
@@ -102,26 +87,13 @@ function Arrow({ on }: { on: boolean }) {
   );
 }
 
-function CompactVote({
-  commentId,
-  own,
-  voted,
-  viewer,
-  next,
-}: {
-  commentId: string;
-  own: boolean;
-  voted: boolean;
-  viewer: { id: string } | null;
-  next: string;
-}) {
-  const [state, action, pending] = useActionState(voteAction, null as ActionState);
+function CompactVote({ commentId, own, voted, signedIn, next, action, pending, error }: VoteProps) {
   if (own) {
     return <span className="flex h-[1.35em] w-full items-center justify-center" aria-hidden />;
   }
   const hit =
     "flex h-[1.35em] w-full items-center justify-center border-0 bg-transparent p-0 hover:[&>span]:border-b-ink";
-  if (!viewer) {
+  if (!signedIn) {
     return (
       <Link
         href={`/login?next=${encodeURIComponent(next)}`}
@@ -148,12 +120,12 @@ function CompactVote({
       >
         <Arrow on={voted} />
       </button>
-      {state?.error ? (
+      {error ? (
         <span
           role="status"
           className={cx(note, "absolute top-0 left-full z-10 ml-1.5 bg-paper px-1 leading-[1.35em]")}
         >
-          {state.error}
+          {error}
         </span>
       ) : null}
     </form>

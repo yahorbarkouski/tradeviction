@@ -1,36 +1,35 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 import { MetricValue } from "@/components/Metric";
-import { getMarket, getStartupBySlug, listEventsForStartup } from "@/lib/db/queries";
+import { ListSkeleton } from "@/components/Skeleton";
+import { cachedEvents, cachedStartupBySlug, getMarket } from "@/lib/db/queries";
 import { eventKindLabel, formatAge, formatDepth, stanceWord } from "@/lib/format";
-import { nowMs } from "@/lib/time";
 import { cx } from "@/lib/cx";
+import { cachedNow } from "@/lib/clock";
 import { heading, statLine } from "@/lib/ui";
 
-export const dynamic = "force-dynamic";
-
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ slug: string }>;
-}): Promise<Metadata> {
+export async function generateMetadata({ params }: PageProps<"/s/[slug]/moves">): Promise<Metadata> {
   const { slug } = await params;
-  const startup = await getStartupBySlug(slug);
+  const startup = await cachedStartupBySlug(slug);
   return { title: startup ? `${startup.name} moves` : "not found" };
 }
 
-export default async function MovesPage({
-  params,
-}: {
-  params: Promise<{ slug: string }>;
-}) {
+export default function MovesPage({ params }: PageProps<"/s/[slug]/moves">) {
+  return (
+    <Suspense fallback={<ListSkeleton rows={6} />}>
+      <MovesBody params={params} />
+    </Suspense>
+  );
+}
+
+async function MovesBody({ params }: Pick<PageProps<"/s/[slug]/moves">, "params">) {
   const { slug } = await params;
-  const startup = await getStartupBySlug(slug);
+  const startup = await cachedStartupBySlug(slug);
   if (!startup) notFound();
-  const now = nowMs();
-  const market = await getMarket(startup.id, now);
-  const events = await listEventsForStartup(startup.id);
+  const now = await cachedNow();
+  const [market, events] = await Promise.all([getMarket(startup.id, now), cachedEvents(startup.id)]);
   return (
     <>
       <p className="text-sm text-mute">

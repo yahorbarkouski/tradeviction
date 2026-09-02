@@ -1,13 +1,15 @@
 import {
+  cachedStartupBySlug,
+  cachedThread,
   getBookLine,
-  getCommentById,
   getMarket,
   getPlayerStats,
-  getStartupBySlug,
   getUserByUsername,
   listUserBook,
 } from "@/lib/db/queries";
 import { formatAlpha } from "@/lib/format";
+import { findThreadNode } from "@/lib/thread";
+import { cachedNow } from "@/lib/clock";
 import { nowMs } from "@/lib/time";
 import type { Comment, Direction, Startup } from "@/lib/types";
 
@@ -47,9 +49,9 @@ export async function thesisPulse(comment: Comment, fallback: number): Promise<n
 }
 
 export async function loadStartupMarket(slug: string) {
-  const startup = await getStartupBySlug(slug);
+  const startup = await cachedStartupBySlug(slug);
   if (!startup) return null;
-  const market = await getMarket(startup.id, nowMs());
+  const market = await getMarket(startup.id, await cachedNow());
   return { startup, market };
 }
 
@@ -67,15 +69,19 @@ export async function loadProfileBook(username: string) {
   };
 }
 
+// A comment is only reachable under its own startup, dead or alive.
 export async function loadThesis(slug: string, id: string) {
-  const startup = await getStartupBySlug(slug);
+  const startup = await cachedStartupBySlug(slug);
   if (!startup) return null;
-  const comment = await getCommentById(id);
-  if (!comment || comment.startupId !== startup.id) return null;
-  const market = await getMarket(startup.id, nowMs());
+  const thread = await cachedThread(startup.id);
+  const node = findThreadNode(thread, id);
+  if (!node) return null;
+  const { kids: _kids, ...comment } = node;
+  const market = await getMarket(startup.id, await cachedNow());
   return {
     startup,
     comment,
+    thread,
     market,
     pulse: await thesisPulse(comment, market.pulse),
   };

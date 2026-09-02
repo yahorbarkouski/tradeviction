@@ -1,5 +1,6 @@
 import { CalendarRange } from "lucide-react";
 import Link from "next/link";
+import { IntentLink } from "@/components/IntentLink";
 import { Favicon } from "@/components/Favicon";
 import { MetricHead, MetricValue } from "@/components/Metric";
 import { CallSpark } from "@/components/StanceSplit";
@@ -150,7 +151,7 @@ function Title({ item }: { item: FeedItem }) {
   const { market } = item;
   return (
     <div className="leading-[1.35] text-pretty">
-      <Link href={`/s/${item.slug}`}>{item.name}</Link>{" "}
+      <IntentLink href={`/s/${item.slug}`}>{item.name}</IntentLink>{" "}
       <a href={item.url} rel="noreferrer" target="_blank" className="text-sm text-mute">
         ({item.domain})
       </a>
