@@ -3,10 +3,10 @@ import { accounted, loadWorld } from "@/lib/engine";
 import { applyBookChange, getMarket, setMuted, setTrusted } from "@/lib/db/queries";
 import { ELIGIBLE_AGE_MS, GENESIS_N, GENESIS_WINDOW_MS } from "@/lib/market";
 import { DAY_MS } from "@/lib/time";
-import { clock, establish, makeStartup, makeUser, plainComment } from "./harness/factories";
+import { clock, endorse, establish, makeStartup, makeUser, plainComment, vote } from "./harness/factories";
 
 describe("accounted", () => {
-  it("needs seven days and three startups, or trust, and muting removes it", async () => {
+  it("needs seven days, three startups, and an endorsement, or trust, or a checkmark; muting removes it", async () => {
     clock.freeze();
     const fresh = await makeUser();
     const established = await makeUser();
@@ -15,7 +15,10 @@ describe("accounted", () => {
     await establish(oldNarrow, { touches: 2 });
     const youngWide = await makeUser();
     await establish(youngWide, { ageMs: ELIGIBLE_AGE_MS - 60_000 });
+    const unendorsed = await makeUser();
+    await establish(unendorsed, { endorse: false });
     const trusted = await makeUser({ trusted: true });
+    const verified = await makeUser({ verified: true });
     const mutedEstablished = await makeUser({ muted: true });
     await establish(mutedEstablished);
 
@@ -25,7 +28,9 @@ describe("accounted", () => {
     expect(accounted(world, established.id, now)).toBe(true);
     expect(accounted(world, oldNarrow.id, now)).toBe(false);
     expect(accounted(world, youngWide.id, now)).toBe(false);
+    expect(accounted(world, unendorsed.id, now)).toBe(false);
     expect(accounted(world, trusted.id, now)).toBe(true);
+    expect(accounted(world, verified.id, now)).toBe(true);
     expect(accounted(world, mutedEstablished.id, now)).toBe(false);
     expect(accounted(world, "nobody", now)).toBe(false);
   });
@@ -33,9 +38,47 @@ describe("accounted", () => {
   it("counts comments as touches", async () => {
     clock.freeze();
     const user = await makeUser({ createdAt: Date.now() - 8 * DAY_MS });
-    for (let i = 0; i < 3; i += 1) await plainComment(user, await makeStartup(), `touch ${i}`);
+    const comments: string[] = [];
+    for (let i = 0; i < 3; i += 1) comments.push(await plainComment(user, await makeStartup(), `touch ${i}`));
+    expect(accounted(await loadWorld(Date.now()), user.id, Date.now())).toBe(false);
+    await endorse(comments[0] ?? "");
+    expect(accounted(await loadWorld(Date.now()), user.id, Date.now())).toBe(true);
+  });
+
+  it("takes an endorsement only from a trusted or verified member who is not muted", async () => {
+    clock.freeze();
+    const user = await makeUser();
+    await establish(user, { endorse: false });
+    const take = await plainComment(user, await makeStartup(), "waiting for an endorsement");
+    const isAccounted = async () => accounted(await loadWorld(Date.now()), user.id, Date.now());
+
+    await vote(await makeUser(), take);
+    expect(await isAccounted()).toBe(false);
+    const aged = await makeUser();
+    await establish(aged);
+    await vote(aged, take);
+    expect(await isAccounted()).toBe(false);
+    const mutedTrusted = await makeUser({ trusted: true, muted: true });
+    await vote(mutedTrusted, take);
+    expect(await isAccounted()).toBe(false);
+    await vote(await makeUser({ verified: true }), take);
+    expect(await isAccounted()).toBe(true);
+  });
+
+  it("does not let a farm endorse itself, however long it waits", async () => {
+    clock.freeze();
+    const socks = await Promise.all([makeUser(), makeUser(), makeUser()]);
+    for (const sock of socks) await establish(sock, { endorse: false });
+    const takes: string[] = [];
+    for (const sock of socks) takes.push(await plainComment(sock, await makeStartup(), "sock take"));
+    for (let i = 0; i < socks.length; i += 1) {
+      for (let j = 0; j < socks.length; j += 1) {
+        if (i !== j) await vote(socks[i], takes[j]);
+      }
+    }
+    clock.advance(90 * DAY_MS);
     const world = await loadWorld(Date.now());
-    expect(accounted(world, user.id, Date.now())).toBe(true);
+    for (const sock of socks) expect(accounted(world, sock.id, Date.now())).toBe(false);
   });
 
   it("is evaluated at a point in time", async () => {

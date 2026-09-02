@@ -57,6 +57,7 @@ import type {
   Startup,
   ThreadNode,
   User,
+  XChallenge,
 } from "@/lib/types";
 import { isDirection, isEventKind, isSource } from "@/lib/types";
 
@@ -87,6 +88,9 @@ function parseUser(row: Record<string, unknown>): User {
     muted: intish(row, "muted") === 1,
     showDead: intish(row, "show_dead") === 1,
     trusted: intish(row, "trusted") === 1,
+    xHandle: strNull(row, "x_handle"),
+    xAvatar: strNull(row, "x_avatar"),
+    xVerified: intish(row, "x_verified") === 1,
   };
 }
 
@@ -172,13 +176,13 @@ const STARTUP_SELECT = `
 `;
 
 export async function getUserById(id: string): Promise<User | null> {
-  const row = await getRow("SELECT id, username, created_at, muted, show_dead, trusted FROM users WHERE id = ?", [id]);
+  const row = await getRow("SELECT id, username, created_at, muted, show_dead, trusted, x_handle, x_avatar, x_verified FROM users WHERE id = ?", [id]);
   return row ? parseUser(row) : null;
 }
 
 export async function getUserByUsername(username: string): Promise<UserRecord | null> {
   const row = await getRow(
-    "SELECT id, username, password_hash, created_at, muted, show_dead, trusted FROM users WHERE username = ?",
+    "SELECT id, username, password_hash, created_at, muted, show_dead, trusted, x_handle, x_avatar, x_verified FROM users WHERE username = ?",
     [username],
   );
   return row ? parseUserRecord(row) : null;
@@ -193,10 +197,20 @@ export async function createUser(input: { username: string; passwordHash: string
     input.passwordHash,
     createdAt,
   ]);
-  return { id, username: input.username, createdAt, muted: false, showDead: false, trusted: false };
+  return {
+    id,
+    username: input.username,
+    createdAt,
+    muted: false,
+    showDead: false,
+    trusted: false,
+    xHandle: null,
+    xAvatar: null,
+    xVerified: false,
+  };
 }
 
-export const RATE_KINDS = ["register", "login", "submit", "comment", "vote", "book", "flag"] as const;
+export const RATE_KINDS = ["register", "login", "submit", "comment", "vote", "book", "flag", "verify"] as const;
 export type RateKind = (typeof RATE_KINDS)[number];
 
 export async function logRate(input: { userId: string | null; ip: string; kind: RateKind }): Promise<void> {
@@ -237,6 +251,12 @@ export async function countRate(filter: {
         filter.kind,
         filter.since,
       ]);
+  return row ? intish(row, "n") : 0;
+}
+
+// Every actor together, for site-wide ceilings such as paid lookups.
+export async function countRateAll(kind: RateKind, since: number): Promise<number> {
+  const row = await getRow("SELECT COUNT(*) AS n FROM rate_log WHERE kind = ? AND created_at > ?", [kind, since]);
   return row ? intish(row, "n") : 0;
 }
 
@@ -441,6 +461,72 @@ export async function setTrusted(userId: string, on: boolean): Promise<void> {
   await run("UPDATE users SET trusted = ? WHERE id = ?", [on ? 1 : 0, userId]);
 }
 
+export class XLinkError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "XLinkError";
+  }
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "23505";
+}
+
+export async function getXChallenge(userId: string): Promise<XChallenge | null> {
+  const row = await getRow("SELECT x_code, x_code_handle, x_code_expires FROM users WHERE id = ?", [userId]);
+  if (!row) return null;
+  const code = strNull(row, "x_code");
+  const handle = strNull(row, "x_code_handle");
+  const expiresAt = intNull(row, "x_code_expires");
+  if (!code || !handle || expiresAt === null) return null;
+  return { handle, code, expiresAt };
+}
+
+export async function setXChallenge(userId: string, challenge: XChallenge | null): Promise<void> {
+  await run("UPDATE users SET x_code = ?, x_code_handle = ?, x_code_expires = ? WHERE id = ?", [
+    challenge?.code ?? null,
+    challenge?.handle ?? null,
+    challenge?.expiresAt ?? null,
+    userId,
+  ]);
+}
+
+export async function getUserIdByXId(xId: string): Promise<string | null> {
+  const row = await getRow("SELECT id FROM users WHERE x_id = ?", [xId]);
+  return row ? str(row, "id") : null;
+}
+
+export async function linkX(
+  userId: string,
+  profile: { id: string; handle: string; avatar: string | null },
+  at: number,
+): Promise<void> {
+  try {
+    await run(
+      `UPDATE users
+       SET x_id = ?, x_handle = ?, x_avatar = ?, x_verified = 1, x_verified_at = ?,
+           x_code = NULL, x_code_handle = NULL, x_code_expires = NULL
+       WHERE id = ?`,
+      [profile.id, profile.handle, profile.avatar, at, userId],
+    );
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      throw new XLinkError("That X account is already linked to another account.");
+    }
+    throw error;
+  }
+}
+
+export async function unlinkX(userId: string): Promise<void> {
+  await run(
+    `UPDATE users
+     SET x_id = NULL, x_handle = NULL, x_avatar = NULL, x_verified = 0, x_verified_at = NULL,
+         x_code = NULL, x_code_handle = NULL, x_code_expires = NULL
+     WHERE id = ?`,
+    [userId],
+  );
+}
+
 export async function listIpSiblings(userId: string): Promise<string[]> {
   const rows = await allRows(
     `SELECT DISTINCT u.username
@@ -533,8 +619,10 @@ export async function cachedFeed(sort: Sort, page: number): Promise<{ items: Fee
 }
 
 // One row per user with the weight a vote from them carries in rankings.
-// Mirrors accounted() in lib/engine.ts: muted 0, trusted 1, established 1,
-// everyone else provisional. Takes one param: the created_at cutoff for age.
+// Mirrors accounted() in lib/engine.ts: muted 0; trusted or X-verified 1;
+// established 1, meaning old enough, three startups touched, and upvoted at
+// least once by a trusted or verified member; everyone else provisional.
+// Takes one param: the created_at cutoff for age.
 const VOTER_CTE = `
   WITH touched AS (
     SELECT user_id, COUNT(DISTINCT startup_id) AS n FROM (
@@ -544,16 +632,26 @@ const VOTER_CTE = `
     ) t
     GROUP BY user_id
   ),
+  endorsed AS (
+    SELECT DISTINCT c.user_id
+    FROM comment_votes cv
+    JOIN comments c ON c.id = cv.comment_id
+    JOIN users e ON e.id = cv.user_id
+    WHERE e.id <> c.user_id
+      AND COALESCE(e.muted, 0) = 0
+      AND (COALESCE(e.trusted, 0) = 1 OR COALESCE(e.x_verified, 0) = 1)
+  ),
   voter AS (
     SELECT u.id,
            CASE
              WHEN COALESCE(u.muted, 0) = 1 THEN 0
-             WHEN COALESCE(u.trusted, 0) = 1 THEN 1
-             WHEN u.created_at <= ? AND COALESCE(t.n, 0) >= ${ELIGIBLE_STARTUPS} THEN 1
+             WHEN COALESCE(u.trusted, 0) = 1 OR COALESCE(u.x_verified, 0) = 1 THEN 1
+             WHEN u.created_at <= ? AND COALESCE(t.n, 0) >= ${ELIGIBLE_STARTUPS} AND en.user_id IS NOT NULL THEN 1
              ELSE ${PROVISIONAL_WEIGHT}
            END AS weight
     FROM users u
     LEFT JOIN touched t ON t.user_id = u.id
+    LEFT JOIN endorsed en ON en.user_id = u.id
   )`;
 
 function voterCutoff(now: number): number {
@@ -619,7 +717,7 @@ export async function listFrontComments(
   const start = (page - 1) * FRONT_PAGE;
   const rows = await allRows(
     `${VOTER_CTE}
-     SELECT c.*, u.username, u.created_at AS author_created_at, s.slug AS startup_slug, s.name AS startup_name,
+     SELECT c.*, u.username, u.created_at AS author_created_at, u.x_verified AS author_verified, s.slug AS startup_slug, s.name AS startup_name,
             COALESCE(v.points, 0) AS points, COALESCE(v.score, 0) AS score, COALESCE(r.replies, 0) AS replies,
             p.direction AS p_direction, p.conviction AS p_conviction,
             CASE WHEN ${DEAD_SQL} THEN 1 ELSE 0 END AS dead,
@@ -1055,7 +1153,7 @@ export async function getCommentById(
   const who = viewerId ?? "";
   const row = await getRow(
     `${VOTER_CTE}
-     SELECT c.*, u.username, u.created_at AS author_created_at,
+     SELECT c.*, u.username, u.created_at AS author_created_at, u.x_verified AS author_verified,
             COALESCE(v.points, 0) AS points, COALESCE(v.score, 0) AS score,
             CASE WHEN ${DEAD_SQL} THEN 1 ELSE 0 END AS dead,
             CASE WHEN myf.user_id IS NULL THEN 0 ELSE 1 END AS flagged,
@@ -1101,6 +1199,7 @@ function hydrateComment(row: Record<string, unknown>, viewerId: string | null, v
     flagged: intish(row, "flagged") === 1,
     vouched: intish(row, "vouched") === 1,
     authorCreatedAt: int(row, "author_created_at"),
+    authorVerified: intish(row, "author_verified") === 1,
     position,
   };
 }
@@ -1126,7 +1225,7 @@ export async function listThread(
   const deadOk = showDead ? 1 : 0;
   const rows = await allRows(
     `${VOTER_CTE}
-     SELECT c.*, u.username, u.created_at AS author_created_at,
+     SELECT c.*, u.username, u.created_at AS author_created_at, u.x_verified AS author_verified,
             COALESCE(v.points, 0) AS points, COALESCE(v.score, 0) AS score,
             p.direction AS p_direction, p.conviction AS p_conviction,
             CASE WHEN ${DEAD_SQL} THEN 1 ELSE 0 END AS dead,
@@ -1199,6 +1298,7 @@ export async function insertReply(input: {
     flagged: false,
     vouched: false,
     authorCreatedAt: user?.createdAt ?? createdAt,
+    authorVerified: user?.xVerified ?? false,
     position: null,
   };
 }

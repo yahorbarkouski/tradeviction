@@ -88,16 +88,39 @@ export async function actAs(user: User | null): Promise<void> {
 }
 
 export async function makeUser(
-  opts: { username?: string; createdAt?: number; trusted?: boolean; muted?: boolean } = {},
+  opts: { username?: string; createdAt?: number; trusted?: boolean; muted?: boolean; verified?: boolean } = {},
 ): Promise<User> {
   const id = randomUUID();
   const username = opts.username ?? `u${id.replace(/-/g, "").slice(0, 12)}`;
   const createdAt = opts.createdAt ?? Date.now();
+  const xId = opts.verified ? id.replace(/-/g, "").slice(0, 18) : null;
   await run(
-    "INSERT INTO users (id, username, password_hash, created_at, muted, show_dead, trusted) VALUES (?, ?, ?, ?, ?, 0, ?)",
-    [id, username, passwordHash(), createdAt, opts.muted ? 1 : 0, opts.trusted ? 1 : 0],
+    `INSERT INTO users (id, username, password_hash, created_at, muted, show_dead, trusted, x_id, x_handle, x_verified, x_verified_at)
+     VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`,
+    [
+      id,
+      username,
+      passwordHash(),
+      createdAt,
+      opts.muted ? 1 : 0,
+      opts.trusted ? 1 : 0,
+      xId,
+      xId ? username : null,
+      xId ? 1 : 0,
+      xId ? createdAt : null,
+    ],
   );
-  return { id, username, createdAt, muted: Boolean(opts.muted), showDead: false, trusted: Boolean(opts.trusted) };
+  return {
+    id,
+    username,
+    createdAt,
+    muted: Boolean(opts.muted),
+    showDead: false,
+    trusted: Boolean(opts.trusted),
+    xHandle: xId ? username : null,
+    xAvatar: null,
+    xVerified: Boolean(xId),
+  };
 }
 
 let startupSeq = 0;
@@ -114,21 +137,38 @@ export async function makeStartup(name?: string): Promise<Startup> {
   });
 }
 
-// Backdates the account past the eligibility age and gives it first touches on
-// enough startups, so accounted() is true from now on.
-export async function establish(user: User, opts: { touches?: number; ageMs?: number } = {}): Promise<void> {
+// Backdates the account past the eligibility age, gives it first touches on
+// enough startups, and has a trusted member upvote one of its comments, so
+// accounted() is true from now on. Pass endorse: false to leave out the upvote.
+export async function establish(
+  user: User,
+  opts: { touches?: number; ageMs?: number; endorse?: boolean } = {},
+): Promise<void> {
   const createdAt = Date.now() - (opts.ageMs ?? 8 * DAY_MS);
   await run("UPDATE users SET created_at = ? WHERE id = ?", [createdAt, user.id]);
   user.createdAt = createdAt;
   const touches = opts.touches ?? ELIGIBLE_STARTUPS;
+  const startups: Startup[] = [];
   for (let i = 0; i < touches; i += 1) {
     const startup = await makeStartup();
+    startups.push(startup);
     await run(
       `INSERT INTO positions (id, user_id, startup_id, direction, conviction, note, opened_at, updated_at, closed_at)
        VALUES (?, ?, ?, 'long', 0, '', ?, ?, NULL)`,
       [randomUUID(), user.id, startup.id, createdAt, createdAt],
     );
   }
+  if (opts.endorse === false) return;
+  const startup = startups[0] ?? (await makeStartup());
+  const comment = await plainComment(user, startup, "an endorsed take", createdAt);
+  await endorse(comment, createdAt);
+}
+
+// A trusted member upvotes the comment at the given time.
+export async function endorse(commentId: string, at = Date.now()): Promise<User> {
+  const endorser = await makeUser({ trusted: true, createdAt: at });
+  await run("INSERT INTO comment_votes (comment_id, user_id, created_at) VALUES (?, ?, ?)", [commentId, endorser.id, at]);
+  return endorser;
 }
 
 export async function register(username: string, opts: { password?: string; ip?: string; next?: string } = {}): Promise<User> {

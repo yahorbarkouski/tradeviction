@@ -96,7 +96,7 @@ function Row({
         <div className="text-sm leading-[1.35] text-mute">
           {points}
           {" by "}
-          <UserLink username={item.username} createdAt={item.authorCreatedAt} now={now} />
+          <UserLink username={item.username} createdAt={item.authorCreatedAt} now={now} verified={item.authorVerified} />
           {pos ? (
             <>
               {" "}

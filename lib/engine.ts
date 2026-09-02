@@ -37,6 +37,8 @@ type UserMeta = {
   createdAt: number;
   muted: boolean;
   trusted: boolean;
+  verified: boolean;
+  endorsedAt: number | null;
   firsts: number[];
 };
 
@@ -63,9 +65,9 @@ type Memo = {
 const memos = new WeakMap<World, Map<string, Memo>>();
 
 async function readWorldData(): Promise<WorldData> {
-  const [userRows, firstRows, startupRows, lotRows, positionRows, touchRows, commentRows] =
+  const [userRows, firstRows, startupRows, lotRows, positionRows, touchRows, commentRows, endorsementRows] =
     await Promise.all([
-      allRows("SELECT id, created_at, muted, trusted FROM users"),
+      allRows("SELECT id, created_at, muted, trusted, x_verified FROM users"),
       allRows(`
         SELECT user_id, startup_id, MIN(at) AS first_at FROM (
           SELECT user_id, startup_id, opened_at AS at FROM positions
@@ -82,6 +84,16 @@ async function readWorldData(): Promise<WorldData> {
         SELECT user_id, startup_id, created_at AS at FROM comments
       `),
       allRows("SELECT startup_id, COUNT(*) AS n FROM comments GROUP BY startup_id"),
+      allRows(`
+        SELECT c.user_id, MIN(cv.created_at) AS at
+        FROM comment_votes cv
+        JOIN comments c ON c.id = cv.comment_id
+        JOIN users e ON e.id = cv.user_id
+        WHERE e.id <> c.user_id
+          AND COALESCE(e.muted, 0) = 0
+          AND (COALESCE(e.trusted, 0) = 1 OR COALESCE(e.x_verified, 0) = 1)
+        GROUP BY c.user_id
+      `),
     ]);
 
   const users = new Map<string, UserMeta>();
@@ -90,8 +102,14 @@ async function readWorldData(): Promise<WorldData> {
       createdAt: int(row, "created_at"),
       muted: intish(row, "muted") === 1,
       trusted: intish(row, "trusted") === 1,
+      verified: intish(row, "x_verified") === 1,
+      endorsedAt: null,
       firsts: [],
     });
+  }
+  for (const row of endorsementRows) {
+    const user = users.get(str(row, "user_id"));
+    if (user) user.endorsedAt = int(row, "at");
   }
   for (const row of firstRows) {
     const user = users.get(str(row, "user_id"));
@@ -185,8 +203,9 @@ export async function loadWorld(now = Date.now()): Promise<World> {
 export function accounted(world: World, userId: string, at: number): boolean {
   const user = world.users.get(userId);
   if (!user || user.muted) return false;
-  if (user.trusted) return true;
+  if (user.trusted || user.verified) return true;
   if (at - user.createdAt < ELIGIBLE_AGE_MS) return false;
+  if (user.endorsedAt === null || user.endorsedAt > at) return false;
   let n = 0;
   for (const first of user.firsts) {
     if (first > at) break;

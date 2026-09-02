@@ -10,7 +10,15 @@ CREATE TABLE IF NOT EXISTS users (
   created_at BIGINT NOT NULL,
   muted INTEGER NOT NULL DEFAULT 0,
   show_dead INTEGER NOT NULL DEFAULT 0,
-  trusted INTEGER NOT NULL DEFAULT 0
+  trusted INTEGER NOT NULL DEFAULT 0,
+  x_id TEXT,
+  x_handle TEXT,
+  x_avatar TEXT,
+  x_verified INTEGER NOT NULL DEFAULT 0,
+  x_verified_at BIGINT,
+  x_code TEXT,
+  x_code_handle TEXT,
+  x_code_expires BIGINT
 );
 
 CREATE TABLE IF NOT EXISTS startups (

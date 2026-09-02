@@ -154,7 +154,7 @@ function Body({
           error={vote.error}
         />
         <div className="min-w-0">
-          <UserLink username={node.username} createdAt={node.authorCreatedAt} now={now} />
+          <UserLink username={node.username} createdAt={node.authorCreatedAt} now={now} verified={node.authorVerified} />
           {" · "}
           <Link href={dest}>{formatAge(node.createdAt, now)}</Link>
           {pos ? (

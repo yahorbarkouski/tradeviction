@@ -142,7 +142,7 @@ describe("vote weight", () => {
     }
 
     const seen = await getCommentById(id);
-    expect(await count("comment_votes")).toBe(4);
+    expect(await count("comment_votes", "comment_id = ?", [id])).toBe(4);
     expect(seen?.points).toBe(3);
     expect(seen?.score).toBeCloseTo(2 + PROVISIONAL_WEIGHT);
   });

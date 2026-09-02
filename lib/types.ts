@@ -17,6 +17,15 @@ export type User = {
   muted: boolean;
   showDead: boolean;
   trusted: boolean;
+  xHandle: string | null;
+  xAvatar: string | null;
+  xVerified: boolean;
+};
+
+export type XChallenge = {
+  handle: string;
+  code: string;
+  expiresAt: number;
 };
 
 export type Startup = {
@@ -138,6 +147,7 @@ export type Comment = {
   flagged: boolean;
   vouched: boolean;
   authorCreatedAt: number;
+  authorVerified: boolean;
   position: { direction: Direction; conviction: number } | null;
 };
 

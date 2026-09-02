@@ -1,28 +1,35 @@
 import type { Metadata } from "next";
+import { BadgeCheck } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { adminMuteAction, adminTrustAction, closeAction, logoutAction, showDeadAction } from "@/app/actions";
 import { ClosePositionForm } from "@/components/PositionForm";
 import { Favicon } from "@/components/Favicon";
-import { MetricLabel } from "@/components/Metric";
+import { MetricLabel, MetricValue } from "@/components/Metric";
 import { ListSkeleton } from "@/components/Skeleton";
+import { XLink } from "@/components/XLink";
 import { getCurrentUser } from "@/lib/auth";
 import { isAdmin } from "@/lib/admin";
 import {
   alphaRank,
   getPlayerStats,
   getUserByUsername,
+  getXChallenge,
   listIpSiblings,
   listUserBook,
   listUserReceipts,
 } from "@/lib/db/queries";
 import { formatAlpha, formatRank, formatWhen, stanceTone, stanceWord } from "@/lib/format";
-import { ELIGIBLE_AGE_MS, ELIGIBLE_STARTUPS, FRESH_MS } from "@/lib/market";
-import { DAY_MS, nowMs } from "@/lib/time";
+import { FRESH_MS } from "@/lib/market";
+import { nowMs } from "@/lib/time";
 import { bookAlt, loadProfileBook } from "@/lib/share";
+import { xAvatarUrl } from "@/lib/x";
 import { heading, kicker } from "@/lib/ui";
 import { cx } from "@/lib/cx";
+
+const pipe =
+  "cursor-pointer border-0 bg-transparent p-0 font-sans text-sm text-mute hover:underline decoration-1 underline-offset-[0.12em]";
 
 export async function generateMetadata({ params }: PageProps<"/u/[username]">): Promise<Metadata> {
   const { username } = await params;
@@ -47,115 +54,140 @@ async function ProfileBody({ params }: Pick<PageProps<"/u/[username]">, "params"
   const user = await getUserByUsername(username);
   if (!user) notFound();
   const now = nowMs();
-  const [stats, book, receipts, rank, siblings] = await Promise.all([
+  const own = viewer?.id === user.id;
+  const [stats, book, receipts, rank, siblings, challenge] = await Promise.all([
     getPlayerStats(user.id, now),
     listUserBook(user.id, now),
     listUserReceipts(user.id),
     alphaRank(user.id, now),
     isAdmin(viewer) ? listIpSiblings(user.id) : Promise.resolve([] as string[]),
+    own ? getXChallenge(user.id) : Promise.resolve(null),
   ]);
   const longs = book.filter((line) => line.position.direction === "long");
   const shorts = book.filter((line) => line.position.direction === "short");
-  const own = viewer?.id === user.id;
-  const eligibleDays = Math.round(ELIGIBLE_AGE_MS / DAY_MS);
+  const avatar = user.xAvatar ? xAvatarUrl(user.xAvatar) : null;
 
   return (
     <>
-      <h1 className={cx(heading, now - user.createdAt < FRESH_MS && "text-fresh")}>{user.username}</h1>
-      <div className="mb-1.5 flex flex-wrap items-baseline gap-x-6 gap-y-2 font-mono text-base tabular-nums">
-        <span>
-          <MetricLabel id="alpha">Alpha</MetricLabel>{" "}
-          <strong className={cx("font-medium", stats.alpha >= 0 ? "text-long" : "text-short")}>
-            {formatAlpha(stats.alpha)}
-          </strong>
-        </span>
-        <span>
-          <MetricLabel id="karma">Karma</MetricLabel>{" "}
-          <strong className="font-medium">{stats.karma.toLocaleString("en-US")}</strong>
-        </span>
-        <Link href="/top" className="text-mute">
-          {formatRank(rank)}
-        </Link>
-      </div>
-      <div className="text-sm text-mute">
-        joined {formatWhen(user.createdAt)} ·{" "}
-        <MetricLabel id="conviction">
-          {stats.deployed}/100 deployed
-        </MetricLabel>{" "}
-        · {stats.movesLeft} moves left today
-        {own ? (
-          <>
-            {" · "}
-            <form action={showDeadAction} className="contents">
-              <input type="hidden" name="on" value={user.showDead ? "0" : "1"} />
-              <button
-                type="submit"
-                className="cursor-pointer border-0 bg-transparent p-0 font-sans text-sm text-mute hover:underline decoration-1 underline-offset-[0.12em]"
-              >
-                {user.showDead ? "showdead: yes" : "showdead: no"}
-              </button>
-            </form>
-            {" · "}
-            <form action={logoutAction} className="contents">
-              <button
-                type="submit"
-                className="cursor-pointer border-0 bg-transparent p-0 font-sans text-sm text-mute hover:underline decoration-1 underline-offset-[0.12em]"
-              >
-                logout
-              </button>
-            </form>
-          </>
+      <header
+        className={cx("mb-5 grid gap-x-3", avatar ? "grid-cols-[40px_minmax(0,1fr)]" : "grid-cols-[minmax(0,1fr)]")}
+      >
+        {avatar ? (
+          // The mark spans the name and the stat row and centers on them.
+          <a
+            href={`https://x.com/${user.xHandle}`}
+            rel="noreferrer"
+            target="_blank"
+            className="row-span-2 self-center leading-none hover:no-underline"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={avatar} alt="" width={40} height={40} className="block h-10 w-10 rounded-full" />
+          </a>
         ) : null}
-        {isAdmin(viewer) && !isAdmin(user) ? (
-          <>
-            {user.muted ? " · muted" : null}
-            {user.trusted ? " · trusted" : null}
-            {" · "}
-            <form action={adminMuteAction} className="contents">
-              <input type="hidden" name="username" value={user.username} />
-              <input type="hidden" name="on" value={user.muted ? "0" : "1"} />
-              <button
-                type="submit"
-                className="cursor-pointer border-0 bg-transparent p-0 font-sans text-sm text-mute hover:underline decoration-1 underline-offset-[0.12em]"
-              >
-                {user.muted ? "unmute" : "mute"}
-              </button>
-            </form>
-            {" · "}
-            <form action={adminTrustAction} className="contents">
-              <input type="hidden" name="username" value={user.username} />
-              <input type="hidden" name="on" value={user.trusted ? "0" : "1"} />
-              <button
-                type="submit"
-                className="cursor-pointer border-0 bg-transparent p-0 font-sans text-sm text-mute hover:underline decoration-1 underline-offset-[0.12em]"
-              >
-                {user.trusted ? "untrust" : "trust"}
-              </button>
-            </form>
-            {" · "}
-            <Link href={`/u/${user.username}/delete`}>delete</Link>
-          </>
-        ) : null}
-      </div>
-      {own && !stats.established ? (
-        <p className="mt-1.5 text-sm text-mute text-pretty">
-          New account: your votes count at reduced weight in rankings until this account is {eligibleDays} days
-          old and has touched {ELIGIBLE_STARTUPS} companies.
-        </p>
-      ) : null}
-      {siblings.length > 0 ? (
-        <p className="mt-1.5 text-sm text-mute text-pretty">
-          also seen from the same network:{" "}
-          {siblings.map((name, i) => (
-            <span key={name}>
-              {i > 0 ? ", " : null}
-              <Link href={`/u/${name}`}>{name}</Link>
+        <h1 className={cx(heading, "min-w-0", avatar && "col-start-2", now - user.createdAt < FRESH_MS && "text-fresh")}>
+          {user.username}
+          {user.xVerified ? (
+            <span className="ml-1.5 text-mute" title="verified on X">
+              <BadgeCheck
+                role="img"
+                aria-label="verified on X"
+                strokeWidth={2}
+                className="inline-block h-[0.85em] w-[0.85em] align-[-0.1em]"
+              />
             </span>
-          ))}
+          ) : null}
+        </h1>
+        <p
+          className={cx(
+            "m-0 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-base tabular-nums",
+            avatar && "col-start-2",
+          )}
+        >
+            <MetricValue id="alpha" className={cx("font-medium", stats.alpha >= 0 ? "text-long" : "text-short")}>
+              {formatAlpha(stats.alpha)}
+            </MetricValue>
+            <MetricValue id="karma" className="font-medium text-ink">
+              {stats.karma.toLocaleString("en-US")}
+            </MetricValue>
+            <Link href="/top" className="text-mute">
+              {formatRank(rank)}
+            </Link>
         </p>
-      ) : null}
+        <div className={cx("mt-1 min-w-0", avatar && "col-start-2")}>
+          <div className="text-sm text-mute">
+            joined {formatWhen(user.createdAt)}
+            {" · "}
+            <span title="Conviction">
+              <MetricLabel id="conviction">{stats.deployed}/100</MetricLabel>
+            </span>
+            {" · "}
+            {stats.movesLeft} moves left
+            {user.xHandle ? (
+              <>
+                {" · "}
+                <a href={`https://x.com/${user.xHandle}`} rel="noreferrer" target="_blank">
+                  @{user.xHandle}
+                </a>
+              </>
+            ) : null}
+            {own ? (
+              <>
+                {" · "}
+                <form action={showDeadAction} className="contents">
+                  <input type="hidden" name="on" value={user.showDead ? "0" : "1"} />
+                  <button type="submit" className={pipe}>
+                    {user.showDead ? "showdead: yes" : "showdead: no"}
+                  </button>
+                </form>
+                {" · "}
+                <form action={logoutAction} className="contents">
+                  <button type="submit" className={pipe}>
+                    logout
+                  </button>
+                </form>
+                <XLink key={challenge?.code ?? "none"} xHandle={user.xHandle} challenge={challenge} now={now} />
+              </>
+            ) : null}
+            {isAdmin(viewer) && !isAdmin(user) ? (
+              <>
+                {user.muted ? " · muted" : null}
+                {user.trusted ? " · trusted" : null}
+                {" · "}
+                <form action={adminMuteAction} className="contents">
+                  <input type="hidden" name="username" value={user.username} />
+                  <input type="hidden" name="on" value={user.muted ? "0" : "1"} />
+                  <button type="submit" className={pipe}>
+                    {user.muted ? "unmute" : "mute"}
+                  </button>
+                </form>
+                {" · "}
+                <form action={adminTrustAction} className="contents">
+                  <input type="hidden" name="username" value={user.username} />
+                  <input type="hidden" name="on" value={user.trusted ? "0" : "1"} />
+                  <button type="submit" className={pipe}>
+                    {user.trusted ? "untrust" : "trust"}
+                  </button>
+                </form>
+                {" · "}
+                <Link href={`/u/${user.username}/delete`}>delete</Link>
+              </>
+            ) : null}
+          </div>
+          {siblings.length > 0 ? (
+            <p className="mt-1.5 text-sm text-mute text-pretty">
+              also seen from the same network:{" "}
+              {siblings.map((name, i) => (
+                <span key={name}>
+                  {i > 0 ? ", " : null}
+                  <Link href={`/u/${name}`}>{name}</Link>
+                </span>
+              ))}
+            </p>
+          ) : null}
+        </div>
+      </header>
 
-      <div className="mt-4">
+      <div>
         <h2 className={cx(kicker, "mt-5 mb-1.5 text-long")}>long</h2>
         <BookSide lines={longs} own={own} kind="long" />
         <h2 className={cx(kicker, "mt-5 mb-1.5 text-short")}>short</h2>

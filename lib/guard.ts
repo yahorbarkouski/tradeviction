@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 import { isAdmin } from "@/lib/admin";
 import { run, withTransaction } from "@/lib/db";
 import { DAY_MS } from "@/lib/time";
-import { countRate, lastRate, logRate, type RateKind } from "@/lib/db/queries";
+import { countRate, countRateAll, lastRate, logRate, type RateKind } from "@/lib/db/queries";
 import type { User } from "@/lib/types";
 
 type RateActor = User | { username: string };
@@ -15,6 +15,13 @@ export class GuardError extends Error {
 }
 
 const HOUR = 3_600_000;
+
+// X lookups cost money per call, so they are capped per account, per address,
+// and for the whole site each hour.
+const VERIFY_GAP_MS = 10_000;
+const VERIFY_PER_USER_HOUR = 10;
+const VERIFY_PER_IP_HOUR = 20;
+const VERIFY_SITE_HOUR = 120;
 
 function waitText(ms: number): string {
   const seconds = Math.max(1, Math.ceil(ms / 1000));
@@ -96,6 +103,19 @@ export async function assertWrite(kind: RateKind, user: RateActor | null, ip?: s
   }
   if (kind === "comment") {
     gapFromLast(await lastRate({ userId: user.id, kind: "comment" }), commentGap(age), now);
+    return from;
+  }
+  if (kind === "verify") {
+    gapFromLast(await lastRate({ userId: user.id, kind: "verify" }), VERIFY_GAP_MS, now);
+    if (
+      (await countRate({ userId: user.id, kind: "verify", since: now - HOUR })) >= VERIFY_PER_USER_HOUR ||
+      (await countRate({ ip: from, kind: "verify", since: now - HOUR })) >= VERIFY_PER_IP_HOUR
+    ) {
+      throw new GuardError("Too many verification checks this hour. Try again later.");
+    }
+    if ((await countRateAll("verify", now - HOUR)) >= VERIFY_SITE_HOUR) {
+      throw new GuardError("X verification is busy right now. Try again later.");
+    }
     return from;
   }
   if (kind === "flag") {
