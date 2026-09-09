@@ -55,6 +55,6 @@
     "knip": "^6.34.0",
     "prettier": "^3.9.6",
     "typescript": "^5",
-    "vitest": "^4.1.11"
+    "vitest": "^5.0.0"
   }
 }
